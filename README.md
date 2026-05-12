@@ -8,7 +8,7 @@
 ![Status](https://img.shields.io/badge/Status-In%20Development-yellow?style=flat-square)
 
 > **Final Year Project — Bachelor of Information Technology and Computing**  
-> Makerere University | Uganda | Academic Year 2025–2026
+> Kyambogo University | Uganda | Academic Year 2025–2026
 
 ---
 
