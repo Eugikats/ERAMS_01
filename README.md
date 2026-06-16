@@ -1,9 +1,8 @@
 # ERAMS — Emergency Response and Ambulance Management System
 
-![PHP](https://img.shields.io/badge/PHP-8.2-777BB4?style=flat-square&logo=php&logoColor=white)
-![Laravel](https://img.shields.io/badge/Laravel-11-FF2D20?style=flat-square&logo=laravel&logoColor=white)
-![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?style=flat-square&logo=mysql&logoColor=white)
-![Android](https://img.shields.io/badge/Android-Driver%20App-3DDC84?style=flat-square&logo=android&logoColor=white)
+![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=flat-square&logo=flutter&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-Backend-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
+![Firebase](https://img.shields.io/badge/Firebase-Hosting-FFCA28?style=flat-square&logo=firebase&logoColor=black)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 ![Status](https://img.shields.io/badge/Status-In%20Development-yellow?style=flat-square)
 
@@ -14,254 +13,215 @@
 
 ## Project Description
 
-ERAMS (Emergency Response and Ambulance Management System) is a web and mobile-based platform engineered to digitise and accelerate emergency medical response across selected hospitals in Uganda — one public (government) facility and one private facility. The system tackles well-documented real-world problems — manual phone-based dispatch, absent real-time GPS tracking, poor inter-agency coordination, and paper-based incident records — by delivering role-based access control (RBAC), an automated nearest-ambulance dispatch algorithm, live GPS tracking, digitalised incident logging, hospital arrival notifications, analytics dashboards with DHIS2 export capability, and a full digital audit trail; all through a responsive web frontend for Dispatchers, Hospital Staff, and Administrators, and an offline-tolerant Android application for Ambulance Drivers.
+ERAMS digitises emergency ambulance dispatch across selected hospitals in Uganda — one public (Mulago National Referral Hospital) and one private (Healthstone Hospital, Banda). The system replaces manual telephone-based dispatch and paper logbooks with:
+
+- **Automated nearest-ambulance dispatch** using PostGIS geospatial queries
+- **Live GPS tracking** of ambulances in real time (Supabase Realtime)
+- **Role-based access control** (Dispatcher, Driver, Hospital Staff, Administrator)
+- **Advance hospital notifications** with patient condition and ETA
+- **Analytics dashboard** for response-time performance evaluation
+- **Offline resilience** for drivers in low-connectivity environments
+
+Built as a **single Flutter codebase** targeting web (Dispatcher, Hospital, Admin) and Android (Ambulance Driver), with Supabase as the backend and Firebase Hosting for the web app.
 
 ---
 
-## System Architecture
+## Architecture
 
-ERAMS follows a **three-tier client-server architecture**:
+| Layer | Technology |
+|-------|-----------|
+| Client | Flutter (web + Android) |
+| Backend-as-a-Service | Supabase (Postgres + PostGIS, Auth, Realtime, Edge Functions) |
+| Web Hosting | Firebase Hosting (static Flutter web build) |
+| State Management | Riverpod |
+| Maps | `flutter_map` + OpenStreetMap tiles |
+| Routing | `go_router` |
+| CI/CD | GitHub Actions |
 
-| Tier | Layer | Technology |
-|------|-------|------------|
-| **Tier 1** | **Presentation Layer** — Responsive web frontend for Dispatchers, Hospital Staff, and Administrators; Android mobile application for Ambulance Drivers. | HTML5 / CSS3 / JavaScript · Android (Java) |
-| **Tier 2** | **Application Layer** — PHP 8.2 RESTful API backend built with Laravel 11, handling business logic, dispatch algorithm, GPS ingestion, RBAC enforcement, and optional DHIS2 export. | Laravel 11 · PHP 8.2 · Sanctum |
-| **Tier 3** | **Data Layer** — MySQL 8 relational database storing incidents, users, ambulances, GPS pings, and audit logs. | MySQL 8 · Laravel Eloquent ORM |
+See `docs/ERAMS_TECHNICAL_BUILD_PLAN.md` for the full architecture diagram, ERD, and dispatch sequence diagram.
 
 ---
 
 ## Prerequisites
 
-Ensure the following are installed on your development machine before proceeding:
-
-| Requirement | Minimum Version | Download |
-|---|---|---|
-| PHP | 8.2 | https://www.php.net/downloads |
-| Composer | 2.x | https://getcomposer.org |
-| Node.js (+ npm) | 18 LTS | https://nodejs.org |
-| MySQL Server | 8.0 | https://dev.mysql.com/downloads |
-| Android Studio | Hedgehog (2023.1.1) + | https://developer.android.com/studio |
+| Tool | Version | Install |
+|------|---------|---------|
+| Flutter SDK | 3.x stable | https://docs.flutter.dev/get-started/install |
+| Dart | bundled with Flutter | — |
+| Android Studio or VS Code | latest | IDE + Flutter extension |
+| Supabase CLI | latest | `npm install -g supabase` |
+| Firebase CLI | latest | `npm install -g firebase-tools` |
 | Git | 2.x | https://git-scm.com |
 
-> **Optional:** [DHIS2 sandbox credentials](https://play.dhis2.org) if you intend to test the DHIS2 export feature.
-
-
-
-### Local Setup Instructions
-
-### 1 — Clone the Repository
-
-bash
-git clone https://github.com/forva2025/ERAMS_01.git
-cd eram
-
 ---
 
-### 2 — Backend Setup (Laravel 11)
+## Local Setup
+
+### 1 — Clone the repository
 
 ```bash
-# Navigate to the backend directory
-cd backend
-
-# Install PHP dependencies via Composer
-composer install
-
-# Copy the environment file and open it for editing
-cp .env.example .env
-
-# Generate the application key
-php artisan key:generate
+git clone https://github.com/forva2025/ERAMS_01.git
+cd ERAMS_01
 ```
 
-**Edit `backend/.env`** and set your local values:
+### 2 — Install Flutter dependencies
+
+```bash
+flutter pub get
+```
+
+### 3 — Configure environment
+
+Copy `.env.example` to `.env` (this file is git-ignored):
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and fill in your Supabase project URL and anon key:
 
 ```dotenv
-APP_NAME=ERAMS
-APP_ENV=local
-APP_DEBUG=true
-APP_URL=http://localhost:8000
-
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=erams
-DB_USERNAME=root
-DB_PASSWORD=your_password
-
-DHIS2_BASE_URL=https://play.dhis2.org/40/api
-DHIS2_USERNAME=admin
-DHIS2_PASSWORD=district
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_ANON_KEY=your-anon-key-here
+FIREBASE_PROJECT_ID=your-firebase-project-id
 ```
 
+### 4 — Run on web
+
 ```bash
-# Create the MySQL database (run in MySQL CLI or GUI)
-# CREATE DATABASE erams CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+flutter run -d chrome \
+  --dart-define=SUPABASE_URL=$(grep SUPABASE_URL .env | cut -d= -f2) \
+  --dart-define=SUPABASE_ANON_KEY=$(grep SUPABASE_ANON_KEY .env | cut -d= -f2)
+```
 
-# Run database migrations
-php artisan migrate
+Or on Android:
 
-# (Optional) Seed with demo data
-php artisan db:seed
-
-# Start the development server
-php artisan serve
-# → API available at http://localhost:8000/api
+```bash
+flutter run -d <your_device_id> \
+  --dart-define=SUPABASE_URL=... \
+  --dart-define=SUPABASE_ANON_KEY=...
 ```
 
 ---
 
-### 3 — Frontend Setup (Web UI)
-
-The web frontend is plain HTML5 / CSS3 / JavaScript — no build step required.
+## Supabase Setup (first time)
 
 ```bash
-# Navigate to the frontend directory
-cd ../frontend
+# Link to your remote Supabase project
+supabase link --project-ref your-project-ref
 
-# Open directly in a browser
-start index.html          # Windows
-# OR serve via a local server for proper AJAX support:
-npx -y serve .
-# → UI available at http://localhost:3000
+# Apply migrations
+supabase db push
+
+# Seed demo data
+supabase db reset --db-url <your-db-url>   # applies migrations + seed.sql
 ```
 
-> **API base URL:** Update `frontend/assets/js/api.js` → `BASE_URL` constant to point to `http://localhost:8000/api`.
+Enable the **PostGIS** extension in the Supabase dashboard under Database → Extensions before running migrations.
 
 ---
 
-### 4 — Mobile App Setup (Android Driver App)
+## Firebase Hosting Setup (first time)
 
 ```bash
-# Navigate to the mobile directory
-cd ../mobile
+firebase login
+firebase init hosting   # point public dir to build/web; configure as SPA
 ```
 
-1. Open **Android Studio** → **File → Open** → select the `mobile/` directory.
-2. Wait for Gradle sync to complete.
-3. Open `mobile/app/src/main/java/com/erams/driver/ApiClient.java` and update `BASE_URL` to your **backend IP** (use your LAN IP, not `localhost`, so the emulator/device can reach the server).
-4. Run on an **emulator** (API 26+) or physical device via **Run → Run 'app'**.
+### Deploy web build
+
+```bash
+flutter build web --release \
+  --dart-define=SUPABASE_URL=... \
+  --dart-define=SUPABASE_ANON_KEY=...
+firebase deploy --only hosting
+```
 
 ---
 
 ## Running Tests
 
-### Backend (PHPUnit)
-
 ```bash
-cd backend
+# Unit and widget tests
+flutter test
 
-# Run all tests
-php artisan test
-
-# Run only unit tests
-php artisan test --testsuite=Unit
-
-# Run only feature tests
-php artisan test --testsuite=Feature
-
-# Run with coverage report (requires Xdebug or PCOV)
-php artisan test --coverage
-```
-
-### Frontend (Manual / Browser DevTools)
-
-Open any `.html` view in a browser with DevTools open. Network requests and console errors surface in the **Network** and **Console** tabs respectively.
-
-### System & Integration Tests
-
-See [`docs/Test_Plan.md`](docs/Test_Plan.md) for the full test matrix covering functional, integration, performance, and UAT test cases.
-
-```bash
-# Convenience aliases defined in tests/
-tests/unit/          ← Unit-level stubs
-tests/integration/   ← API integration scenarios
-tests/system/        ← End-to-end system flows
-tests/validation/    ← UAT acceptance checklists
+# With coverage
+flutter test --coverage
+genhtml coverage/lcov.info -o coverage/html
 ```
 
 ---
 
-## API Endpoint Reference
+## Build Phases
 
-> **Base URL:** `http://localhost:8000/api`  
-> **Authentication:** Laravel Sanctum (Bearer token). Obtain a token via `POST /auth/login`.
+| Phase | Target | Description |
+|-------|--------|-------------|
+| 0 | 17–18 Jun | Environment & repo setup |
+| 1 | 18–20 Jun | Data model, Auth, RLS |
+| 2 | 20–22 Jun | Dispatcher module |
+| 3 | 22–24 Jun | Automated dispatch RPC |
+| 4 | 24–25 Jun | Driver mobile module |
+| 5 | 25–26 Jun | Hospital module |
+| 6 | 26–27 Jun | Admin module |
+| 7 | 27–29 Jun | Polish & deployment |
+| 8 | 29–30 Jun | Validation & demo prep |
 
-| Method | Endpoint | Auth | Role(s) | Description |
-|--------|----------|------|---------|-------------|
-| `POST` | `/auth/login` | ✗ | Public | Authenticate and receive Bearer token |
-| `POST` | `/auth/logout` | ✔ | All | Invalidate current session token |
-| `GET` | `/auth/me` | ✔ | All | Return authenticated user profile |
-| `POST` | `/incidents` | ✔ | Dispatcher | Log a new emergency incident |
-| `GET` | `/incidents` | ✔ | Dispatcher, Admin | List all incidents (paginated) |
-| `GET` | `/incidents/{id}` | ✔ | Dispatcher, Admin | Get a single incident detail |
-| `PATCH` | `/incidents/{id}/status` | ✔ | Dispatcher | Update incident status |
-| `POST` | `/dispatch` | ✔ | Dispatcher | Trigger nearest-ambulance dispatch algorithm |
-| `GET` | `/dispatch/{id}` | ✔ | Dispatcher, Admin | Get dispatch assignment detail |
-| `GET` | `/ambulances` | ✔ | Dispatcher, Admin | List all ambulances and current status |
-| `POST` | `/ambulances` | ✔ | Admin | Register a new ambulance |
-| `PATCH` | `/ambulances/{id}` | ✔ | Admin | Update ambulance record |
-| `DELETE` | `/ambulances/{id}` | ✔ | Admin | Remove an ambulance |
-| `POST` | `/gps/ping` | ✔ | Driver | Submit a GPS location ping |
-| `GET` | `/gps/{ambulanceId}/latest` | ✔ | Dispatcher | Retrieve latest GPS position |
-| `GET` | `/gps/{ambulanceId}/history` | ✔ | Admin | Retrieve full GPS ping history |
-| `GET` | `/notifications` | ✔ | Hospital, Admin | List notifications for the authenticated user |
-| `POST` | `/notifications/mark-read` | ✔ | Hospital | Mark notification(s) as read |
-| `GET` | `/reports/summary` | ✔ | Admin | Response-time and dispatch summary report |
-| `GET` | `/reports/incidents` | ✔ | Admin | Detailed incident report (filterable) |
-| `GET` | `/dhis2/export` | ✔ | Admin | Export aggregated data to DHIS2 |
-| `GET` | `/users` | ✔ | Admin | List all system users |
-| `POST` | `/users` | ✔ | Admin | Create a new user account |
-| `PATCH` | `/users/{id}` | ✔ | Admin | Update user details or role |
-| `DELETE` | `/users/{id}` | ✔ | Admin | Deactivate a user account |
-
-> Full request/response schemas, validation rules, and error codes are documented in [`docs/API_Documentation.md`](docs/API_Documentation.md).
+Progress tracked in [`docs/COMPLETED_WORK.md`](docs/COMPLETED_WORK.md).  
+Full phase specifications in [`docs/ERAMS_TECHNICAL_BUILD_PLAN.md`](docs/ERAMS_TECHNICAL_BUILD_PLAN.md).
 
 ---
 
 ## Project Structure
 
 ```
-ERAMS/
-├── docs/                   ← Design artefacts, specs, test plan, user manual
-│   └── diagrams/           ← ERD, DFD, UML diagrams
-├── backend/                ← Laravel 11 PHP RESTful API
-│   ├── app/Http/           ← Controllers, Middleware, Form Requests
-│   ├── app/Models/         ← Eloquent ORM models
-│   ├── app/Services/       ← Business logic services
-│   ├── app/Events/         ← Laravel event classes (WebSocket broadcasts)
-│   ├── database/           ← Migrations and seeders
-│   └── routes/api.php      ← All API route definitions
-├── frontend/               ← Web UI (HTML5 / CSS3 / JavaScript)
-│   ├── assets/             ← CSS, JS, and image assets
-│   └── views/              ← auth, dispatcher, hospital, and admin pages
-├── mobile/                 ← Android Driver Application (Java)
-│   └── app/src/main/java/com/erams/driver/
-└── tests/                  ← Test suites (unit, integration, system, validation)
+ERAMS_01/
+├── docs/                          ← build plan, progress tracker
+├── .github/workflows/             ← CI/CD (GitHub Actions)
+├── lib/
+│   ├── main.dart
+│   ├── app.dart                   ← root widget, routing, theme
+│   ├── core/                      ← config, theme, utils
+│   ├── models/                    ← Dart data classes
+│   ├── services/                  ← Supabase & Realtime wrappers
+│   ├── state/                     ← Riverpod providers
+│   ├── features/                  ← auth, dispatcher, driver, hospital, admin
+│   └── widgets/                   ← shared UI components
+├── supabase/
+│   ├── migrations/                ← SQL schema + RLS policies
+│   ├── functions/                 ← Edge Functions (Deno/TypeScript)
+│   └── seed.sql
+├── web/                           ← Flutter web platform files
+├── test/
+├── pubspec.yaml
+├── firebase.json
+└── .firebaserc
 ```
 
 ---
 
 ## Team
 
-| Name | Student Number | Primary Role |
-|---|---|---|
-| Ashaba Ritah | — | 
-| Ochiria Elias Onyait | |
-| Katusiime Eugene | — | |
-| Ashaka Joseph | — |  |
+| Name | Role |
+|------|------|
+| Ashaba Ritah | Team member |
+| Ochiria Elias Onyait | Team member |
+| Katusiime Eugene | Team member |
+| Ashaka Joseph | Team member |
+
+**Supervisor:** Ms. Shallon Ahimbisibwe, Department of Computer Science, Kyambogo University
 
 ---
 
-## Supervisor Acknowledgement
+## Known Limitations (MVP)
 
-This project is submitted in partial fulfilment of the requirements for the award of the **Bachelor of Information Technology and Computing** at **Kyambogo University, Uganda**.
-
-We sincerely thank our project supervisor Ms Shallom for her continued guidance, valuable feedback, and support throughout the design and development of ERAMS. Their technical insight and encouragement have been instrumental in shaping the direction and quality of this work.
+- ETA calculation uses a straight-line distance estimate, not a routing API
+- DHIS2 export is not implemented (deferred post-MVP)
+- Desktop native build (Windows/macOS) is a stretch target — primary "desktop" experience is the responsive web app
 
 ---
 
 ## License
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for full details.
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
 
-© 2025–2026 ERAMS Team — Kyambogo University
+© 2025–2026 Ashaba Ritah, Ochiria Elias Onyait, Katusiime Eugene, Ashaka Joseph — Kyambogo University
