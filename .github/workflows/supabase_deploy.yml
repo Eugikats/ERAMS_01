@@ -23,12 +23,32 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
+      - name: Check for migrations
+        id: check-migrations
+        run: |
+          if find supabase/migrations -name "*.sql" | grep -q .; then
+            echo "has_migrations=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_migrations=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Push migrations
+        if: steps.check-migrations.outputs.has_migrations == 'true'
         run: supabase db push
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
+      - name: Check for Edge Functions
+        id: check-functions
+        run: |
+          if find supabase/functions -name "index.ts" | grep -q .; then
+            echo "has_functions=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_functions=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy Edge Functions
+        if: steps.check-functions.outputs.has_functions == 'true'
         run: supabase functions deploy
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
