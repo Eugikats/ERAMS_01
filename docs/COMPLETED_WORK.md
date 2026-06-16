@@ -12,45 +12,55 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 0 — Environment & Repository Setup (Target: 17–18 Jun 2026)
+## Phase 0 — Environment & Repository Setup ✓ Complete
 
 ### Tasks
-- [ ] Initialize Flutter project (`flutter create erams --platforms=web,android,windows`)
-- [x] Set up repo structure (folders, CLAUDE.md, AGENTS.md)
-- [x] Configure `.gitignore` for Flutter
+- [x] Initialize Flutter project (`flutter create . --platforms=web,android`)
+- [x] Set up repo structure (folders, CLAUDE.md, AGENTS.md, docs/)
+- [x] Configure `.gitignore` for Flutter (android/, ios/ committed; build/ ignored)
 - [x] Write `README.md` with project overview and setup instructions
-- [ ] Create Supabase project; enable PostGIS extension; capture project URL + anon key
-- [ ] Create Firebase project; run `firebase init hosting`; point to `build/web`
-- [ ] Add `supabase_flutter`, `flutter_riverpod`, `flutter_map`, `go_router` to `pubspec.yaml`
-- [ ] Set up environment config pattern (`--dart-define` or `flutter_dotenv` with `.env` in `.gitignore`)
-- [ ] Create GitHub Actions workflow stubs
+- [x] Create Supabase project (walbcsfwwgyerhfgbjdp.supabase.co); credentials in `.env`
+- [x] Create Firebase project (`erams-98eb2`); `firebase init hosting` complete
+- [x] Add all dependencies to `pubspec.yaml`; `flutter pub get` clean
+- [x] Set up `--dart-define` environment config pattern; `.env` git-ignored
+- [x] GitHub Actions workflows created and fixed (firebase-hosting-merge/pr, supabase_deploy)
+- [x] All 7 GitHub repository secrets added
 
 ### Needs Team Testing
-- After `flutter run -d chrome`: confirm the placeholder app shell loads in the browser and successfully pings Supabase (check browser DevTools Network tab for the Supabase health check request).
+- Run `flutter run -d chrome --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...`
+- Confirm placeholder screen loads in browser with no console errors.
 
 ---
 
 ## Phase 1 — Data Model, Auth & RLS (Target: 18–20 Jun 2026)
 
 ### Tasks
-- [ ] SQL migrations: `profiles`, `hospitals`, `ambulances`, `incidents`, `incident_events`
-- [ ] Enable PostGIS; add `geography` columns and GIST spatial indexes
-- [ ] Supabase Auth (email/password); trigger to populate `profiles` on user creation
-- [ ] RLS policies: Dispatcher, Driver, Hospital, Admin
-- [ ] Seed `hospitals`: Healthstone Hospital (Banda) and Mulago National Referral Hospital with coordinates
-- [ ] Seed demo ambulances and one user account per role
-- [ ] Flutter `auth` feature: login screen, session persistence, role-based routing
+- [x] SQL migration 001: schema — `profiles`, `hospitals`, `ambulances`, `incidents`, `incident_events`; PostGIS; GIST indexes; Realtime publication
+- [x] SQL migration 002: auth trigger — auto-create `profiles` row on `auth.users` insert
+- [x] SQL migration 003: RLS policies for all four roles + `current_user_role()` helper function
+- [x] `seed.sql` updated — Healthstone Hospital + Mulago + 5 demo ambulances with Kampala coordinates
+- [x] Flutter models — `Profile`, `Hospital`, `Ambulance`, `Incident`
+- [x] `AuthService` — `signIn`, `signOut`, `currentProfile`
+- [x] Riverpod `authStateProvider` and `currentProfileProvider`
+- [x] Login screen — email/password form, role-based redirect on success, error handling
+- [x] `app.dart` updated — theme wired in, GoRouter with auth redirect + role routes
 
 ### Needs Team Testing
-- Log in with each of the 4 demo accounts (dispatcher, driver, hospital, admin).
-- Confirm each lands on the correct role screen.
-- Try to access another role's data directly via the Supabase REST API — confirm RLS blocks it with a 401/403.
+- Enable PostGIS in Supabase Dashboard → Database → Extensions before applying migrations.
+- Apply migrations: paste each `supabase/migrations/0*.sql` file into the Supabase SQL Editor in order (001 → 002 → 003), OR run `supabase db push` via CLI.
+- Apply `supabase/seed.sql` via SQL Editor.
+- Create the 4 demo accounts in Supabase Dashboard → Authentication → Add User (use the credentials in `seed.sql` header comments).
+- Set the role for each account: in SQL Editor run the UPDATE statements from `seed.sql`.
+- Log in with each of the 4 demo accounts from the Flutter web app. Confirm each lands on a role-labelled placeholder screen.
+- Attempt to log in with a wrong password — confirm a friendly error message appears.
+- Try to access `/dispatcher` while logged out — confirm it redirects to `/login`.
 
 ---
 
 ## Phase 2 — Dispatcher Module: Incident Logging & Map (Target: 20–22 Jun 2026)
 
 ### Tasks
+- [ ] **Theme pass** — `AppColors`, `AppTheme` (Material 3), status colour constants, placeholder logo widget — wire into `EramsApp`
 - [ ] "New Incident" form: location pin drop, nature of emergency, patient notes, hospital selector
 - [ ] Map widget: incident markers, ambulance markers (colour-coded by status), hospital markers
 - [ ] Wire incident creation to `incidents` table
@@ -61,6 +71,7 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 - Log a new incident as a Dispatcher.
 - Confirm it appears on the Dashboard list AND the map instantly (without page refresh).
 - Have a second browser session open — confirm the incident appears there in real time too.
+- Confirm all status badge colours match the agreed palette (available=green, dispatched=orange, en_route=blue, etc.).
 
 ---
 
