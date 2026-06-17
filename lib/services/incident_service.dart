@@ -17,25 +17,14 @@ class IncidentService {
   Future<List<Incident>> fetchActiveIncidents() async {
     final data = await supabaseClient
         .from('incidents')
-        .select(
-          'id, reporter_name, reporter_phone, location_description,'
-          ' nature_of_emergency, patient_condition_notes, status,'
-          ' created_by, assigned_ambulance_id, assigned_hospital_id,'
-          ' created_at, dispatched_at, arrived_at, completed_at,'
-          ' ST_X(incident_location::geometry) as longitude,'
-          ' ST_Y(incident_location::geometry) as latitude',
-        )
+        .select()
         .inFilter('status', ['logged', 'dispatched', 'en_route', 'arrived'])
         .order('created_at', ascending: false);
     return (data as List).map((e) => Incident.fromJson(e)).toList();
   }
 
   Future<List<Hospital>> fetchHospitals() async {
-    final data = await supabaseClient.from('hospitals').select(
-      'id, name, address, contact_phone,'
-      ' ST_X(location::geometry) as longitude,'
-      ' ST_Y(location::geometry) as latitude',
-    );
+    final data = await supabaseClient.from('hospitals').select();
     return (data as List).map((e) => Hospital.fromJson(e)).toList();
   }
 

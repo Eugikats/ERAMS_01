@@ -1,3 +1,5 @@
+import '../core/utils/geo_utils.dart';
+
 enum IncidentStatus {
   logged,
   dispatched,
@@ -76,8 +78,8 @@ class Incident {
       id: json['id'] as String,
       reporterName: json['reporter_name'] as String? ?? '',
       reporterPhone: json['reporter_phone'] as String? ?? '',
-      latitude: (json['latitude'] as num?)?.toDouble(),
-      longitude: (json['longitude'] as num?)?.toDouble(),
+      latitude: geoLat(json['incident_location']),
+      longitude: geoLng(json['incident_location']),
       locationDescription: json['location_description'] as String? ?? '',
       natureOfEmergency: json['nature_of_emergency'] as String? ?? '',
       patientConditionNotes: json['patient_condition_notes'] as String? ?? '',

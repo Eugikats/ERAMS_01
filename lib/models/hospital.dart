@@ -1,3 +1,5 @@
+import '../core/utils/geo_utils.dart';
+
 class Hospital {
   final String id;
   final String name;
@@ -20,8 +22,8 @@ class Hospital {
       id: json['id'] as String,
       name: json['name'] as String,
       address: json['address'] as String? ?? '',
-      latitude: (json['latitude'] as num?)?.toDouble(),
-      longitude: (json['longitude'] as num?)?.toDouble(),
+      latitude: geoLat(json['location']),
+      longitude: geoLng(json['location']),
       contactPhone: json['contact_phone'] as String? ?? '',
     );
   }

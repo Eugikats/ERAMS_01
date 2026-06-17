@@ -1,3 +1,5 @@
+import '../core/utils/geo_utils.dart';
+
 enum AmbulanceStatus {
   available,
   dispatched,
@@ -54,8 +56,8 @@ class Ambulance {
       id: json['id'] as String,
       plateNumber: json['plate_number'] as String,
       status: AmbulanceStatus.fromString(json['status'] as String? ?? 'offline'),
-      latitude: (json['latitude'] as num?)?.toDouble(),
-      longitude: (json['longitude'] as num?)?.toDouble(),
+      latitude: geoLat(json['current_location']),
+      longitude: geoLng(json['current_location']),
       driverId: json['driver_id'] as String?,
       hospitalId: json['hospital_id'] as String?,
       lastLocationUpdate: json['last_location_update'] != null
