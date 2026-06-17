@@ -528,14 +528,14 @@ class _IncidentCard extends ConsumerWidget {
                 ),
                 if (incident.latitude != null) ...[
                   const SizedBox(height: 6),
-                  Row(
+                  const Row(
                     children: [
-                      const Icon(Icons.gps_fixed,
+                      Icon(Icons.gps_fixed,
                           size: 12, color: AppColors.primary),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       Text(
                         'Show on map',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
                           color: AppColors.primary,
                           fontWeight: FontWeight.w600,
@@ -747,10 +747,10 @@ class _MapLegend extends StatelessWidget {
               color: Colors.black.withValues(alpha: 0.1), blurRadius: 6),
         ],
       ),
-      child: Column(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
-        children: const [
+        children: [
           _LegendItem(color: AppColors.primary, icon: Icons.warning_amber_rounded, label: 'Incident'),
           SizedBox(height: 6),
           _LegendItem(color: AppColors.secondary, icon: Icons.local_hospital, label: 'Hospital'),

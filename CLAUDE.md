@@ -103,6 +103,24 @@ firebase deploy --only hosting
 
 ---
 
+## After Every Coding Session — Required Checklist
+
+Before finishing any coding session or reporting a task complete, **always run:**
+
+```bash
+flutter analyze
+```
+
+- Zero issues = done. Commit.
+- Any `info` or `warning` = fix before committing. Common fixes:
+  - `prefer_const_constructors` → add `const` to the constructor
+  - `prefer_const_literals_to_create_immutables` → move `const` to the constructor, remove from children
+  - `deprecated_member_use` → apply the suggested replacement (e.g. `value` → `initialValue` on form fields; `withOpacity` → `withValues(alpha:)`)
+  - Unused imports → delete them
+- Do **not** suppress warnings with `// ignore:` unless there is a documented reason.
+
+---
+
 ## Tech Conventions
 
 - **State:** Use Riverpod providers. No `setState` in screens — lift state to a `StateNotifier` or `AsyncNotifier`.
