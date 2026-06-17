@@ -50,19 +50,12 @@ class Ambulance {
   });
 
   factory Ambulance.fromJson(Map<String, dynamic> json) {
-    double? lat, lng;
-    final loc = json['current_location'];
-    if (loc is Map<String, dynamic> && loc['coordinates'] is List) {
-      final coords = loc['coordinates'] as List;
-      lng = (coords[0] as num).toDouble();
-      lat = (coords[1] as num).toDouble();
-    }
     return Ambulance(
       id: json['id'] as String,
       plateNumber: json['plate_number'] as String,
       status: AmbulanceStatus.fromString(json['status'] as String? ?? 'offline'),
-      latitude: lat,
-      longitude: lng,
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
       driverId: json['driver_id'] as String?,
       hospitalId: json['hospital_id'] as String?,
       lastLocationUpdate: json['last_location_update'] != null

@@ -16,21 +16,12 @@ class Hospital {
   });
 
   factory Hospital.fromJson(Map<String, dynamic> json) {
-    // Supabase returns geography as GeoJSON when using select with geojson cast,
-    // or as a WKT string. Handle both cases.
-    double? lat, lng;
-    final loc = json['location'];
-    if (loc is Map<String, dynamic> && loc['coordinates'] is List) {
-      final coords = loc['coordinates'] as List;
-      lng = (coords[0] as num).toDouble();
-      lat = (coords[1] as num).toDouble();
-    }
     return Hospital(
       id: json['id'] as String,
       name: json['name'] as String,
       address: json['address'] as String? ?? '',
-      latitude: lat,
-      longitude: lng,
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
       contactPhone: json['contact_phone'] as String? ?? '',
     );
   }

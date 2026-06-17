@@ -72,19 +72,12 @@ class Incident {
   });
 
   factory Incident.fromJson(Map<String, dynamic> json) {
-    double? lat, lng;
-    final loc = json['incident_location'];
-    if (loc is Map<String, dynamic> && loc['coordinates'] is List) {
-      final coords = loc['coordinates'] as List;
-      lng = (coords[0] as num).toDouble();
-      lat = (coords[1] as num).toDouble();
-    }
     return Incident(
       id: json['id'] as String,
       reporterName: json['reporter_name'] as String? ?? '',
       reporterPhone: json['reporter_phone'] as String? ?? '',
-      latitude: lat,
-      longitude: lng,
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
       locationDescription: json['location_description'] as String? ?? '',
       natureOfEmergency: json['nature_of_emergency'] as String? ?? '',
       patientConditionNotes: json['patient_condition_notes'] as String? ?? '',

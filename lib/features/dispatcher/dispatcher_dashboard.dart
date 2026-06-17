@@ -477,6 +477,91 @@ class _IncidentCardState extends ConsumerState<_IncidentCard> {
     }
   }
 
+  void _showDetails(BuildContext context) {
+    final ambulances = ref.read(ambulancesNotifierProvider).valueOrNull ?? [];
+    final hospitals = ref.read(hospitalsProvider).valueOrNull ?? [];
+
+    String? assignedPlate;
+    if (widget.incident.assignedAmbulanceId != null) {
+      final found = ambulances.where((a) => a.id == widget.incident.assignedAmbulanceId);
+      if (found.isNotEmpty) assignedPlate = found.first.plateNumber;
+    }
+    String? hospitalName;
+    if (widget.incident.assignedHospitalId != null) {
+      final found = hospitals.where((h) => h.id == widget.incident.assignedHospitalId);
+      if (found.isNotEmpty) hospitalName = found.first.name;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        maxChildSize: 0.92,
+        minChildSize: 0.4,
+        expand: false,
+        builder: (_, scrollController) => ListView(
+          controller: scrollController,
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.incident.natureOfEmergency.isEmpty
+                        ? 'Unknown Emergency'
+                        : widget.incident.natureOfEmergency,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                StatusBadge(status: widget.incident.status.dbValue),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+            _DetailRow(Icons.person_outline, 'Reporter', widget.incident.reporterName),
+            if (widget.incident.reporterPhone.isNotEmpty)
+              _DetailRow(Icons.phone_outlined, 'Phone', widget.incident.reporterPhone),
+            if (widget.incident.locationDescription.isNotEmpty)
+              _DetailRow(Icons.place_outlined, 'Location', widget.incident.locationDescription),
+            if (widget.incident.patientConditionNotes.isNotEmpty)
+              _DetailRow(Icons.medical_information_outlined, 'Patient Condition', widget.incident.patientConditionNotes),
+            if (hospitalName != null)
+              _DetailRow(Icons.local_hospital_outlined, 'Assigned Hospital', hospitalName),
+            if (assignedPlate != null)
+              _DetailRow(Icons.airport_shuttle_outlined, 'Ambulance', assignedPlate),
+            const Divider(),
+            _DetailRow(Icons.access_time, 'Logged', _formatTime(widget.incident.createdAt)),
+            if (widget.incident.dispatchedAt != null)
+              _DetailRow(Icons.send_outlined, 'Dispatched', _formatTime(widget.incident.dispatchedAt!)),
+            if (widget.incident.arrivedAt != null)
+              _DetailRow(Icons.location_on_outlined, 'Arrived', _formatTime(widget.incident.arrivedAt!)),
+            if (widget.incident.completedAt != null)
+              _DetailRow(Icons.check_circle_outline, 'Completed', _formatTime(widget.incident.completedAt!)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatTime(DateTime dt) {
+    final d = dt.toLocal();
+    return '${d.day}/${d.month}/${d.year}  ${d.hour.toString().padLeft(2,'0')}:${d.minute.toString().padLeft(2,'0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final selectedId = ref.watch(selectedIncidentIdProvider);
@@ -530,6 +615,16 @@ class _IncidentCardState extends ConsumerState<_IncidentCard> {
                       _timeAgo(widget.incident.createdAt),
                       style: const TextStyle(
                           fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(width: 4),
+                    InkWell(
+                      onTap: () => _showDetails(context),
+                      borderRadius: BorderRadius.circular(16),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.info_outline,
+                            size: 18, color: AppColors.textSecondary),
+                      ),
                     ),
                   ],
                 ),
@@ -945,6 +1040,44 @@ class _LegendItem extends StatelessWidget {
             style: const TextStyle(
                 fontSize: 11, color: AppColors.textSecondary)),
       ],
+    );
+  }
+}
+
+// A labelled row used inside the incident detail bottom sheet.
+class _DetailRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _DetailRow(this.icon, this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: AppColors.textSecondary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textHint,
+                        fontWeight: FontWeight.w500)),
+                const SizedBox(height: 2),
+                Text(value,
+                    style: const TextStyle(
+                        fontSize: 14, color: AppColors.textPrimary)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
