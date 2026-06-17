@@ -15,52 +15,52 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 ## Phase 0 — Environment & Repository Setup ✓ Complete
 
 ### Tasks
-- [x] Initialize Flutter project (`flutter create . --platforms=web,android`)
-- [x] Set up repo structure (folders, CLAUDE.md, AGENTS.md, docs/)
-- [x] Configure `.gitignore` for Flutter (android/, ios/ committed; build/ ignored)
-- [x] Write `README.md` with project overview and setup instructions
-- [x] Create Supabase project (walbcsfwwgyerhfgbjdp.supabase.co); credentials in `.env`
-- [x] Create Firebase project (`erams-98eb2`); `firebase init hosting` complete
-- [x] Add all dependencies to `pubspec.yaml`; `flutter pub get` clean
-- [x] Set up `--dart-define` environment config pattern; `.env` git-ignored
-- [x] GitHub Actions workflows created and fixed (firebase-hosting-merge/pr, supabase_deploy)
-- [x] All 7 GitHub repository secrets added
+- [✓] Initialize Flutter project (`flutter create . --platforms=web,android`)
+- [✓] Set up repo structure (folders, CLAUDE.md, AGENTS.md, docs/)
+- [✓] Configure `.gitignore` for Flutter (android/, ios/ committed; build/ ignored)
+- [✓] Write `README.md` with project overview and setup instructions
+- [✓] Create Supabase project (walbcsfwwgyerhfgbjdp.supabase.co); credentials in `.env`
+- [✓] Create Firebase project (`erams-98eb2`); `firebase init hosting` complete
+- [✓] Add all dependencies to `pubspec.yaml`; `flutter pub get` clean
+- [✓] Set up `--dart-define` environment config pattern; `.env` and `.env.json` git-ignored
+- [✓] `.vscode/launch.json` added — press F5 in VS Code to run with credentials automatically
+- [✓] GitHub Actions workflows created and fixed (firebase-hosting-merge/pr, supabase_deploy)
+- [✓] All 7 GitHub repository secrets added
+- [✓] `web/passkeys.js` added — fixes supabase_flutter passkeys_web plugin crash on web startup
 
-### Needs Team Testing
-- Run `flutter run -d chrome --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...`
-- Confirm placeholder screen loads in browser with no console errors.
+### Verified
+- Local dev confirmed working with `flutter build web --dart-define-from-file=.env.json`
+- App loads in browser; no fatal console errors
 
 ---
 
-## Phase 1 — Data Model, Auth & RLS (Target: 18–20 Jun 2026)
+## Phase 1 — Data Model, Auth & RLS ✓ Complete
 
 ### Tasks
-- [x] SQL migration 001: schema — `profiles`, `hospitals`, `ambulances`, `incidents`, `incident_events`; PostGIS; GIST indexes; Realtime publication
-- [x] SQL migration 002: auth trigger — auto-create `profiles` row on `auth.users` insert
-- [x] SQL migration 003: RLS policies for all four roles + `current_user_role()` helper function
-- [x] `seed.sql` updated — Healthstone Hospital + Mulago + 5 demo ambulances with Kampala coordinates
-- [x] Flutter models — `Profile`, `Hospital`, `Ambulance`, `Incident`
-- [x] `AuthService` — `signIn`, `signOut`, `currentProfile`
-- [x] Riverpod `authStateProvider` and `currentProfileProvider`
-- [x] Login screen — email/password form, role-based redirect on success, error handling
-- [x] `app.dart` updated — theme wired in, GoRouter with auth redirect + role routes
+- [✓] SQL migration 001: schema — `profiles`, `hospitals`, `ambulances`, `incidents`, `incident_events`; PostGIS; GIST indexes; Realtime publication
+- [✓] SQL migration 002: auth trigger — auto-create `profiles` row on `auth.users` insert
+- [✓] SQL migration 003: RLS policies for all four roles + `current_user_role()` helper function
+- [✓] `seed.sql` applied — Healthstone Hospital + Mulago + 5 demo ambulances with Kampala coordinates
+- [✓] 4 demo accounts created in Supabase Auth with correct roles and real UUIDs in seed.sql
+- [✓] Flutter models — `Profile`, `Hospital`, `Ambulance`, `Incident`
+- [✓] `AuthService` — `signIn`, `signOut`, `currentProfile`
+- [✓] Riverpod `authStateProvider` and `currentProfileProvider`
+- [✓] Login screen — email/password form, role-based redirect on success, error handling
+- [✓] `app.dart` updated — theme wired in, GoRouter with auth redirect + role routes
+- [✓] `main.dart` — startup guard shows readable error if credentials missing (no more blank screen)
 
-### Needs Team Testing
-- Enable PostGIS in Supabase Dashboard → Database → Extensions before applying migrations.
-- Apply migrations: paste each `supabase/migrations/0*.sql` file into the Supabase SQL Editor in order (001 → 002 → 003), OR run `supabase db push` via CLI.
-- Apply `supabase/seed.sql` via SQL Editor.
-- Create the 4 demo accounts in Supabase Dashboard → Authentication → Add User (use the credentials in `seed.sql` header comments).
-- Set the role for each account: in SQL Editor run the UPDATE statements from `seed.sql`.
-- Log in with each of the 4 demo accounts from the Flutter web app. Confirm each lands on a role-labelled placeholder screen.
-- Attempt to log in with a wrong password — confirm a friendly error message appears.
-- Try to access `/dispatcher` while logged out — confirm it redirects to `/login`.
+### Verified
+- All 4 demo accounts log in and land on correct role placeholder screens
+- Driver (`katusiime66+driver@gmail.com`) → Ambulance Driver screen ✓
+- Dispatcher, Hospital, Admin accounts route correctly ✓
+- Red ERAMS theme and app bar render correctly ✓
 
 ---
 
 ## Phase 2 — Dispatcher Module: Incident Logging & Map (Target: 20–22 Jun 2026)
 
 ### Tasks
-- [ ] **Theme pass** — `AppColors`, `AppTheme` (Material 3), status colour constants, placeholder logo widget — wire into `EramsApp`
+- [✓] **Theme pass** — `AppColors`, `AppTheme` (Material 3), status colour constants, placeholder logo widget — wired into `EramsApp` (done during Phase 1 setup)
 - [ ] "New Incident" form: location pin drop, nature of emergency, patient notes, hospital selector
 - [ ] Map widget: incident markers, ambulance markers (colour-coded by status), hospital markers
 - [ ] Wire incident creation to `incidents` table
@@ -173,4 +173,4 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-*Last updated: 17 June 2026*
+*Last updated: 17 June 2026 — Phase 0 and Phase 1 verified complete*

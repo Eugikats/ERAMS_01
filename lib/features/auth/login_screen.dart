@@ -175,7 +175,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 32),
                   Text(
-                    'Kyambogo University · Final Year Project 2025–2026',
+                    'Kyambogo University · BITC 2025–2026',
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall

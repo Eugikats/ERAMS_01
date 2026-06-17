@@ -31,6 +31,11 @@
 
   <title>ERAMS</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Passkeys Web SDK — required by supabase_flutter's transitive passkeys_web
+       plugin. Without it, registerWith() throws on startup and the app shows a
+       blank page. Loaded locally (not from CDN) so it works offline and on Firebase. -->
+  <script src="passkeys.js"></script>
 </head>
 <body>
   <!--

@@ -90,19 +90,14 @@ INSERT INTO public.ambulances (id, plate_number, status, current_location, hospi
 -- After creating the 4 demo accounts in the Auth dashboard,
 -- find their UUIDs in Authentication → Users, then run:
 --
---   UPDATE public.profiles SET role = 'dispatcher'
---     WHERE id = '<dispatcher-user-uuid>';
+UPDATE public.profiles SET role = 'dispatcher' WHERE id = '92e8eedb-a17a-4f91-a6df-53a02ae4774d';
+UPDATE public.profiles SET role = 'hospital', hospital_id = 'b2c3d4e5-f6a7-8901-bcde-f12345678901'  -- Mulago
+     WHERE id = '556728b1-f3a7-441c-b095-952f2d8a94a7';
 --
---   UPDATE public.profiles SET role = 'hospital',
---          hospital_id = 'b2c3d4e5-f6a7-8901-bcde-f12345678901'  -- Mulago
---     WHERE id = '<hospital-user-uuid>';
---
---   UPDATE public.profiles SET role = 'admin'
---     WHERE id = '<admin-user-uuid>';
+UPDATE public.profiles SET role = 'admin' WHERE id = '68a07cee-8108-4f63-9866-71c292c3ca48';
 --
 --   -- driver role is already the default; just link the ambulance:
---   UPDATE public.ambulances SET driver_id = '<driver-user-uuid>'
---     WHERE plate_number = 'UBE 001A';
+ UPDATE public.ambulances SET driver_id = '624afe4b-f573-4301-8aa1-22c4cd3b791c' WHERE plate_number = 'UBE 001A';
 --
 -- The driver account email is katusiime66+driver@gmail.com — link
 -- that user to ambulance UBE 001A so dispatch tests work immediately.
