@@ -146,7 +146,7 @@ class _NewIncidentFormState extends ConsumerState<NewIncidentForm> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _SectionHeader('Caller Information'),
+                      const _SectionHeader('Caller Information'),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _reporterNameCtrl,
@@ -169,7 +169,7 @@ class _NewIncidentFormState extends ConsumerState<NewIncidentForm> {
                             (v == null || v.trim().isEmpty) ? 'Required' : null,
                       ),
                       const SizedBox(height: 20),
-                      _SectionHeader('Incident Location'),
+                      const _SectionHeader('Incident Location'),
                       const SizedBox(height: 12),
                       // Location picker button
                       InkWell(
@@ -216,7 +216,7 @@ class _NewIncidentFormState extends ConsumerState<NewIncidentForm> {
                                   ),
                                 ),
                               ),
-                              Icon(
+                              const Icon(
                                 Icons.chevron_right,
                                 color: AppColors.textSecondary,
                               ),
@@ -236,10 +236,10 @@ class _NewIncidentFormState extends ConsumerState<NewIncidentForm> {
                             (v == null || v.trim().isEmpty) ? 'Required' : null,
                       ),
                       const SizedBox(height: 20),
-                      _SectionHeader('Emergency Details'),
+                      const _SectionHeader('Emergency Details'),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        value: _selectedEmergencyType,
+                        initialValue: _selectedEmergencyType,
                         decoration: const InputDecoration(
                           labelText: 'Nature of Emergency *',
                           prefixIcon: Icon(Icons.warning_amber_outlined),
@@ -262,14 +262,14 @@ class _NewIncidentFormState extends ConsumerState<NewIncidentForm> {
                         maxLines: 3,
                       ),
                       const SizedBox(height: 20),
-                      _SectionHeader('Hospital Assignment'),
+                      const _SectionHeader('Hospital Assignment'),
                       const SizedBox(height: 12),
                       hospitalsAsync.when(
                         loading: () => const LinearProgressIndicator(),
                         error: (e, _) => Text('Could not load hospitals: $e',
                             style: const TextStyle(color: AppColors.error)),
                         data: (hospitals) => DropdownButtonFormField<Hospital>(
-                          value: _selectedHospital,
+                          initialValue: _selectedHospital,
                           decoration: const InputDecoration(
                             labelText: 'Assign to Hospital *',
                             prefixIcon: Icon(Icons.local_hospital_outlined),
