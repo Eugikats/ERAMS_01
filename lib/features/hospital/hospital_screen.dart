@@ -1,0 +1,454 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
+
+import '../../core/theme/app_colors.dart';
+import '../../models/ambulance.dart';
+import '../../models/hospital.dart';
+import '../../models/incident.dart';
+import '../../services/auth_service.dart';
+import '../../services/hospital_service.dart';
+import '../../state/hospital_provider.dart';
+import '../../widgets/app_logo.dart';
+import '../../widgets/status_badge.dart';
+
+class HospitalScreen extends ConsumerWidget {
+  const HospitalScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hospitalAsync = ref.watch(myHospitalProvider);
+    final incidentsAsync = ref.watch(hospitalIncidentsProvider);
+    final ambulances = ref.watch(hospitalAmbulancesProvider).valueOrNull ?? [];
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const AppLogoHorizontal(),
+        actions: [
+          IconButton(
+            tooltip: 'Sign out',
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await AuthService().signOut();
+              if (context.mounted) context.go('/login');
+            },
+          ),
+        ],
+      ),
+      body: hospitalAsync.when(
+        loading: () =>
+            const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(
+          child: Text('Error: $e',
+              style: const TextStyle(color: AppColors.error)),
+        ),
+        data: (hospital) {
+          if (hospital == null) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: Text(
+                  'No hospital is linked to your account.\n'
+                  'Contact the administrator.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: AppColors.textSecondary, fontSize: 15),
+                ),
+              ),
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Hospital header
+              _HospitalHeader(hospital: hospital, incidentsAsync: incidentsAsync),
+              const Divider(height: 1),
+              // Incident list
+              Expanded(
+                child: incidentsAsync.when(
+                  loading: () => const Center(
+                      child: CircularProgressIndicator()),
+                  error: (e, _) => Center(
+                    child: Text('Error loading incidents: $e',
+                        style: const TextStyle(
+                            color: AppColors.error)),
+                  ),
+                  data: (incidents) => incidents.isEmpty
+                      ? _EmptyState(hospitalName: hospital.name)
+                      : ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: incidents.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (_, i) {
+                            final amb = incidents[i].assignedAmbulanceId !=
+                                    null
+                                ? ambulances.where((a) =>
+                                        a.id ==
+                                        incidents[i].assignedAmbulanceId)
+                                    .firstOrNull
+                                : null;
+                            return _IncomingPatientCard(
+                              incident: incidents[i],
+                              hospital: hospital,
+                              ambulance: amb,
+                            );
+                          },
+                        ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Hospital header
+// ---------------------------------------------------------------------------
+
+class _HospitalHeader extends StatelessWidget {
+  final Hospital hospital;
+  final AsyncValue<List<Incident>> incidentsAsync;
+
+  const _HospitalHeader(
+      {required this.hospital, required this.incidentsAsync});
+
+  @override
+  Widget build(BuildContext context) {
+    final count = incidentsAsync.valueOrNull?.length ?? 0;
+
+    return Container(
+      color: AppColors.surface,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.secondary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.local_hospital,
+                color: AppColors.secondary, size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hospital.name,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  count == 0
+                      ? 'No active incoming patients'
+                      : '$count incoming patient${count == 1 ? '' : 's'}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: count == 0
+                        ? AppColors.textSecondary
+                        : AppColors.primary,
+                    fontWeight: count == 0
+                        ? FontWeight.normal
+                        : FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Empty state
+// ---------------------------------------------------------------------------
+
+class _EmptyState extends StatelessWidget {
+  final String hospitalName;
+  const _EmptyState({required this.hospitalName});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.check_circle_outline,
+            size: 60,
+            color: AppColors.statusAvailable.withValues(alpha: 0.35),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'No incoming patients',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'New assignments for $hospitalName will appear here',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                fontSize: 13, color: AppColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Incoming patient card
+// ---------------------------------------------------------------------------
+
+class _IncomingPatientCard extends ConsumerStatefulWidget {
+  final Incident incident;
+  final Hospital hospital;
+  final Ambulance? ambulance;
+
+  const _IncomingPatientCard({
+    required this.incident,
+    required this.hospital,
+    this.ambulance,
+  });
+
+  @override
+  ConsumerState<_IncomingPatientCard> createState() =>
+      _IncomingPatientCardState();
+}
+
+class _IncomingPatientCardState
+    extends ConsumerState<_IncomingPatientCard> {
+  bool _acknowledging = false;
+
+  String _etaLabel() {
+    final amb = widget.ambulance;
+    if (amb?.latitude == null ||
+        amb?.longitude == null ||
+        widget.hospital.latitude == null ||
+        widget.hospital.longitude == null) {
+      return '';
+    }
+    const dist = Distance();
+    final km = dist.as(
+      LengthUnit.Kilometer,
+      LatLng(amb!.latitude!, amb.longitude!),
+      LatLng(widget.hospital.latitude!, widget.hospital.longitude!),
+    );
+    final minutes = (km / 40 * 60).ceil();
+    return '~$minutes min  ·  ${km.toStringAsFixed(1)} km from hospital';
+  }
+
+  Future<void> _acknowledge() async {
+    setState(() => _acknowledging = true);
+    try {
+      await HospitalService()
+          .acknowledgeIncident(widget.incident.id);
+      ref
+          .read(acknowledgedIncidentsProvider.notifier)
+          .markAcknowledged(widget.incident.id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _acknowledging = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final acknowledged = ref
+        .watch(acknowledgedIncidentsProvider)
+        .valueOrNull
+        ?.contains(widget.incident.id) ??
+        false;
+    final eta = _etaLabel();
+
+    return Card(
+      margin: EdgeInsets.zero,
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Status + time
+            Row(
+              children: [
+                StatusBadge(status: widget.incident.status.dbValue),
+                const Spacer(),
+                Text(
+                  _timeAgo(widget.incident.createdAt),
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Nature of emergency
+            Text(
+              widget.incident.natureOfEmergency.isEmpty
+                  ? 'Emergency'
+                  : widget.incident.natureOfEmergency,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 10),
+            // Location
+            if (widget.incident.locationDescription.isNotEmpty)
+              _InfoRow(
+                Icons.place_outlined,
+                widget.incident.locationDescription,
+              ),
+            // Caller
+            _InfoRow(
+              Icons.person_outline,
+              widget.incident.reporterPhone.isEmpty
+                  ? widget.incident.reporterName.isEmpty
+                      ? 'Unknown caller'
+                      : widget.incident.reporterName
+                  : '${widget.incident.reporterName}  ·  ${widget.incident.reporterPhone}',
+            ),
+            // Ambulance + status
+            if (widget.ambulance != null)
+              _InfoRow(
+                Icons.airport_shuttle_outlined,
+                '${widget.ambulance!.plateNumber}  ·  ${widget.ambulance!.status.label}',
+                color: AppColors.forStatus(
+                    widget.ambulance!.status.dbValue),
+              ),
+            // ETA
+            if (eta.isNotEmpty)
+              _InfoRow(Icons.timer_outlined, eta,
+                  color: AppColors.secondary),
+            // Patient condition notes
+            if (widget.incident.patientConditionNotes.isNotEmpty) ...[
+              const Divider(height: 20),
+              _InfoRow(
+                Icons.medical_information_outlined,
+                widget.incident.patientConditionNotes,
+                highlight: true,
+              ),
+            ],
+            const SizedBox(height: 14),
+            // Acknowledge button
+            SizedBox(
+              width: double.infinity,
+              child: acknowledged
+                  ? OutlinedButton.icon(
+                      onPressed: null,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 44),
+                        side: const BorderSide(
+                            color: AppColors.statusAvailable),
+                        foregroundColor: AppColors.statusAvailable,
+                      ),
+                      icon: const Icon(Icons.check_circle, size: 18),
+                      label: const Text(
+                        'Acknowledged',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    )
+                  : FilledButton.icon(
+                      onPressed: _acknowledging ? null : _acknowledge,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 44),
+                        backgroundColor: AppColors.secondary,
+                      ),
+                      icon: _acknowledging
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white),
+                            )
+                          : const Icon(
+                              Icons.check_circle_outline,
+                              size: 18,
+                            ),
+                      label: const Text(
+                        'Acknowledge — Ready to Receive',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color? color;
+  final bool highlight;
+
+  const _InfoRow(this.icon, this.text,
+      {this.color, this.highlight = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveColor =
+        color ?? (highlight ? AppColors.textPrimary : AppColors.textSecondary);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 15, color: effectiveColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 13,
+                color: effectiveColor,
+                fontWeight: highlight ? FontWeight.w500 : FontWeight.normal,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

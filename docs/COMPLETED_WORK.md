@@ -124,20 +124,25 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 5 — Hospital Module & Notifications (Target: 25–26 Jun 2026)
+## Phase 5 — Hospital Module & Notifications ✓ Complete
 
 ### Tasks
-- [ ] Hospital view: list of incidents assigned to the user's `hospital_id`, active statuses only
-- [ ] Incident detail: patient condition notes, ambulance location, estimated ETA
-- [ ] Realtime subscription for new assignments and location updates
-- [ ] "Acknowledge / Ready to receive" action (writes `incident_events` entry)
+- [x] Hospital screen (`HospitalScreen`): hospital name header, incoming patient count, list of active incidents assigned to the user's hospital
+- [x] Incident card: nature of emergency, status badge, caller info, location description, ambulance plate + status, live ETA to hospital (Haversine distance ÷ 40 km/h), patient condition notes
+- [x] Realtime subscription on `incidents` filtered by `assigned_hospital_id` — new assignments appear instantly
+- [x] Realtime subscription on `ambulances` — ETA updates live as driver pushes GPS position
+- [x] "Acknowledge — Ready to Receive" button writes `incident_events` row (`event_type = 'message'`, typed payload); button becomes a disabled "Acknowledged" confirmation after tap
+- [x] Acknowledge state loaded from DB on startup (`fetchAcknowledgedIncidentIds` queries `incident_events`) — survives page refresh; optimistic local update keeps button disabled immediately after tap
+- [x] `HospitalService` — `fetchMyHospital`, `fetchAssignedIncidents`, `fetchAllAmbulances`, `acknowledgeIncident`
+- [x] `hospital_provider.dart` — `myHospitalProvider`, `HospitalIncidentsNotifier`, `HospitalAmbulancesNotifier`, `acknowledgedIncidentsProvider`
 
 ### Needs Team Testing
-- Log in as the hospital-role demo account for Mulago.
-- Dispatch an incident assigned to Mulago from the Dispatcher.
-- Confirm the hospital sees the incoming patient card appear without refreshing.
-- Confirm the ambulance location and ETA update live as the driver moves.
-- Click "Acknowledge" and confirm an event entry appears in `incident_events` in Supabase.
+- Log in as `katusiime66+hospital@gmail.com` (Mulago Hospital account).
+- Confirm the screen shows "Mulago National Referral Hospital" header.
+- From a Dispatcher tab, log a new incident and assign it to Mulago — confirm the card appears on the hospital screen without refreshing.
+- Confirm the ambulance plate, status, and ETA update live as the driver pushes GPS.
+- Click "Acknowledge" — confirm button changes to green "Acknowledged" and an entry appears in `incident_events` in Supabase (event_type = 'message', payload contains 'hospital_acknowledged').
+- Complete the incident from the driver side — confirm the card disappears from the hospital view.
 
 ---
 
@@ -155,10 +160,19 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 7 — Polish, Offline Hardening & Deployment (Target: 27–29 Jun 2026)
+## Phase 7 — Polish, History, Profiles & Deployment (Target: 27–29 Jun 2026)
 
 ### Tasks
+
+#### Dashboard robustness (all roles)
+- [ ] **Profile view** (all roles): show full name, role, phone; allow editing full name and phone
+- [ ] **Dispatcher — incident history tab**: completed + cancelled incidents, last 30 days, searchable by nature of emergency
+- [ ] **Hospital — patient history tab**: completed incidents assigned to this hospital, last 30 days
+- [ ] **Driver — trip history tab**: completed incidents assigned to this driver's ambulance
+
+#### Polish & deployment
 - [ ] Responsive layout pass: Dispatcher/Admin on desktop widths; Driver/Hospital on mobile
+- [ ] GPS tracking: guard `Geolocator` calls behind a web-safe check so the driver screen doesn't throw on Flutter web (GPS only active on Android)
 - [ ] Offline-first review: confirm graceful degradation + sync-on-reconnect
 - [ ] Build and deploy Flutter web to Firebase Hosting via GitHub Actions
 - [ ] Build Android APK for driver demo device
@@ -170,6 +184,8 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 - Open the same URL on a mobile browser — confirm it doesn't break.
 - Install the Android APK on a physical device and run the full dispatch flow against the live Supabase instance.
 - Full smoke test: dispatcher logs → auto-assign → driver alert → live location → hospital ETA → status complete → admin analytics updated.
+- Verify history tabs show past incidents correctly for each role.
+- Verify profile view shows correct data and edits persist.
 
 ---
 
@@ -187,4 +203,4 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-*Last updated: 17 June 2026 — Phases 0–3 verified; Phase 4 built, needs team testing*
+*Last updated: 17 June 2026 — Phases 0–3 verified; Phases 4–5 built (Phase 5 acknowledge bug fixed); Phase 7 plan updated with history + profile features*

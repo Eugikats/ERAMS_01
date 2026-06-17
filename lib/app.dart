@@ -7,6 +7,7 @@ import 'core/theme/app_colors.dart';
 import 'features/auth/login_screen.dart';
 import 'features/dispatcher/dispatcher_dashboard.dart';
 import 'features/driver/driver_screen.dart';
+import 'features/hospital/hospital_screen.dart';
 import 'services/auth_service.dart';
 import 'services/supabase_service.dart';
 import 'widgets/app_logo.dart';
@@ -53,8 +54,7 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: '/hospital',
-      builder: (_, __) =>
-          const _RolePlaceholderScreen(role: 'Hospital Staff', icon: Icons.local_hospital_outlined),
+      builder: (_, __) => const HospitalScreen(),
     ),
     GoRoute(
       path: '/admin',
