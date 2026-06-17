@@ -61,11 +61,11 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ### Tasks
 - [✓] **Theme pass** — `AppColors`, `AppTheme` (Material 3), status colour constants, placeholder logo widget — wired into `EramsApp` (done during Phase 1 setup)
-- [x] "New Incident" form: location pin drop on map (`LocationPickerDialog`), nature of emergency dropdown (10 types), patient notes, hospital selector
-- [x] Map widget (`_MapPanel`): incident markers (red/tappable), ambulance markers (colour-coded by status with tooltip), hospital markers (blue), map legend overlay
-- [x] Wire incident creation to `incidents` table via `IncidentService.createIncident()`
-- [x] Dispatcher Dashboard (`DispatcherDashboard`): active incident cards with status badges, filterable by status (All / Logged / Dispatched / En Route / Arrived), responsive two-panel layout (>= 800px) or tabbed layout (< 800px)
-- [x] Realtime subscription for `incidents` and `ambulances` — live updates via `IncidentsNotifier` and `AmbulancesNotifier` (Supabase Realtime → re-fetch on change)
+- [✓] "New Incident" form: location pin drop on map (`LocationPickerDialog`), nature of emergency dropdown (10 types), patient notes, hospital selector
+- [✓] Map widget (`_MapPanel`): incident markers (red/tappable), ambulance markers (colour-coded by status with tooltip), hospital markers (blue), map legend overlay
+- [✓] Wire incident creation to `incidents` table via `IncidentService.createIncident()`
+- [✓] Dispatcher Dashboard (`DispatcherDashboard`): active incident cards with status badges, filterable by status (All / Logged / Dispatched / En Route / Arrived), responsive two-panel layout (>= 800px) or tabbed layout (< 800px)
+- [✓] Realtime subscription for `incidents` and `ambulances` — live updates via `IncidentsNotifier` and `AmbulancesNotifier` (Supabase Realtime → re-fetch on change)
 
 ### Needs Team Testing
 - Log in as the Dispatcher demo account and verify the dashboard loads with the map centred on Kampala.
@@ -80,16 +80,16 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 ## Phase 3 — Automated Dispatch RPC ✓ Complete
 
 ### Tasks
-- [x] Postgres function `dispatch_incident(p_incident_id, p_ambulance_id DEFAULT NULL)` — auto picks nearest available ambulance via PostGIS ST_Distance; accepts optional manual ambulance override; `SECURITY DEFINER`, atomic transaction, GRANT to authenticated
-- [x] Postgres function `update_incident_status(p_incident_id, p_new_status)` — transitions incident lifecycle, syncs ambulance status, writes incident_events audit row; callable by dispatcher, admin, and driver roles
-- [x] Migration `20260617000004_dispatch_rpcs.sql` contains both functions
-- [x] `IncidentService.dispatchIncident()` and `dispatchIncidentManual()` call the RPC via `supabase.rpc()`
-- [x] `IncidentService.updateIncidentStatus()` calls `update_incident_status` RPC
-- [x] `DispatchException` class with typed error codes for clean UI error handling
-- [x] "Dispatch Nearest" button on incident cards (logged status only); shows loading spinner while RPC runs
-- [x] On `no_ambulance_available` error: inline red banner + "Manual" fallback button appears
-- [x] `ManualDispatchDialog` — lists all ambulances sorted by distance from incident, with status badges, km distance, and per-row "Assign" button
-- [x] Assigned ambulance plate shown on dispatched/en_route/arrived cards
+- [✓] Postgres function `dispatch_incident(p_incident_id, p_ambulance_id DEFAULT NULL)` — auto picks nearest available ambulance via PostGIS ST_Distance; accepts optional manual ambulance override; `SECURITY DEFINER`, atomic transaction, GRANT to authenticated
+- [✓] Postgres function `update_incident_status(p_incident_id, p_new_status)` — transitions incident lifecycle, syncs ambulance status, writes incident_events audit row; callable by dispatcher, admin, and driver roles
+- [✓] Migration `20260617000004_dispatch_rpcs.sql` contains both functions
+- [✓] `IncidentService.dispatchIncident()` and `dispatchIncidentManual()` call the RPC via `supabase.rpc()`
+- [✓] `IncidentService.updateIncidentStatus()` calls `update_incident_status` RPC
+- [✓] `DispatchException` class with typed error codes for clean UI error handling
+- [✓] "Dispatch Nearest" button on incident cards (logged status only); shows loading spinner while RPC runs
+- [✓] On `no_ambulance_available` error: inline red banner + "Manual" fallback button appears
+- [✓] `ManualDispatchDialog` — lists all ambulances sorted by distance from incident, with status badges, km distance, and per-row "Assign" button
+- [✓] Assigned ambulance plate shown on dispatched/en_route/arrived cards
 
 ### Needs Team Testing
 - Log in as Dispatcher. Log a new incident with a map location near Kampala.
@@ -101,21 +101,26 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 4 — Driver Module (Mobile) (Target: 24–25 Jun 2026)
+## Phase 4 — Driver Module (Mobile) ✓ Complete
 
 ### Tasks
-- [ ] Driver home screen: status toggle (available/busy/offline), incoming incident alert card
-- [ ] Realtime subscription filtered to driver's `ambulance_id` for dispatch alerts
-- [ ] Periodic GPS location updates every 10–15 seconds while active
-- [ ] Status transition buttons: "En Route" → "Arrived" → "Completed" (calls `update_incident_status`)
-- [ ] Offline queuing: local cache for failed location updates, retry on reconnect
+- [x] Driver home screen (`DriverScreen`): ambulance header card, GPS on/off indicator, status toggle (Available / Busy / Offline), active incident card or "Standing by" state
+- [x] Realtime subscription filtered to driver's `assigned_ambulance_id` on `incidents` table — driver sees alert instantly when dispatched
+- [x] GPS location stream via `Geolocator.getPositionStream()`, uploads to `ambulances.current_location` every 15 seconds; auto-starts on screen load, stops when driver goes offline
+- [x] Status transition buttons: "I'm En Route" → "I've Arrived" → "Incident Complete" (calls `update_incident_status` RPC)
+- [x] Offline queue: failed location pushes are queued in memory and flushed on next successful upload
+- [x] `DriverService` — `fetchMyAmbulance`, `fetchActiveIncident`, `fetchHospital`, `setAmbulanceStatus`, `pushLocation`, `updateIncidentStatus`
+- [x] `driver_provider.dart` — `DriverAmbulanceNotifier`, `DriverIncidentNotifier`, `GpsNotifier`, `hospitalByIdProvider`
 
 ### Needs Team Testing
-- On a physical or emulated Android device, log in as the driver demo account.
-- Dispatch an incident to that driver's ambulance (from a separate Dispatcher browser session).
-- Confirm the driver receives the alert instantly on the mobile app.
-- Walk around (or simulate GPS movement) — confirm location updates appear on the Dispatcher's map within ~15 seconds.
-- Toggle to airplane mode, make a status change, come back online — confirm the queued change syncs.
+- Log in as the driver demo account (`katusiime66+driver@gmail.com`).
+- Confirm the screen shows "UBE 001A" header and GPS auto-starts (green GPS indicator).
+- On a separate Dispatcher session, dispatch an incident to UBE 001A.
+- Confirm the driver screen immediately shows the incident card (Realtime alert, no refresh).
+- Tap "I'm En Route" — confirm the Dispatcher's card updates to "EN ROUTE" and ambulance marker colour changes.
+- Tap "I've Arrived" then "Incident Complete" — confirm the incident disappears from the dispatcher list and ambulance returns to Available.
+- Confirm ambulance GPS position updates on the Dispatcher map every ~2 seconds while driving.
+- Toggle driver to "Offline" — confirm GPS stops (indicator turns grey).
 
 ---
 
@@ -182,4 +187,4 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-*Last updated: 17 June 2026 — Phase 0 and Phase 1 verified complete*
+*Last updated: 17 June 2026 — Phases 0–3 verified; Phase 4 built, needs team testing*

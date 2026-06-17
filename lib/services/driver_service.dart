@@ -1,0 +1,63 @@
+import '../models/ambulance.dart';
+import '../models/hospital.dart';
+import '../models/incident.dart';
+import 'supabase_service.dart';
+
+class DriverService {
+  Future<Ambulance?> fetchMyAmbulance() async {
+    final userId = supabaseClient.auth.currentUser?.id;
+    if (userId == null) return null;
+    final data = await supabaseClient
+        .from('ambulances')
+        .select()
+        .eq('driver_id', userId)
+        .maybeSingle();
+    if (data == null) return null;
+    return Ambulance.fromJson(data);
+  }
+
+  Future<Incident?> fetchActiveIncident(String ambulanceId) async {
+    final data = await supabaseClient
+        .from('incidents')
+        .select()
+        .eq('assigned_ambulance_id', ambulanceId)
+        .inFilter('status', ['dispatched', 'en_route', 'arrived'])
+        .order('dispatched_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    if (data == null) return null;
+    return Incident.fromJson(data);
+  }
+
+  Future<Hospital?> fetchHospital(String hospitalId) async {
+    final data = await supabaseClient
+        .from('hospitals')
+        .select()
+        .eq('id', hospitalId)
+        .single();
+    return Hospital.fromJson(data);
+  }
+
+  Future<void> setAmbulanceStatus(String ambulanceId, String status) async {
+    await supabaseClient
+        .from('ambulances')
+        .update({'status': status})
+        .eq('id', ambulanceId);
+  }
+
+  Future<void> pushLocation(
+      String ambulanceId, double lat, double lng) async {
+    await supabaseClient.from('ambulances').update({
+      'current_location': 'SRID=4326;POINT($lng $lat)',
+      'last_location_update': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', ambulanceId);
+  }
+
+  Future<void> updateIncidentStatus(
+      String incidentId, String status) async {
+    await supabaseClient.rpc('update_incident_status', params: {
+      'p_incident_id': incidentId,
+      'p_new_status': status,
+    });
+  }
+}

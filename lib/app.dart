@@ -6,6 +6,7 @@ import 'core/theme/app_theme.dart';
 import 'core/theme/app_colors.dart';
 import 'features/auth/login_screen.dart';
 import 'features/dispatcher/dispatcher_dashboard.dart';
+import 'features/driver/driver_screen.dart';
 import 'services/auth_service.dart';
 import 'services/supabase_service.dart';
 import 'widgets/app_logo.dart';
@@ -48,8 +49,7 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: '/driver',
-      builder: (_, __) =>
-          const _RolePlaceholderScreen(role: 'Ambulance Driver', icon: Icons.airport_shuttle_outlined),
+      builder: (_, __) => const DriverScreen(),
     ),
     GoRoute(
       path: '/hospital',
