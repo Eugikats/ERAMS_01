@@ -77,20 +77,27 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 3 — Automated Dispatch RPC (Target: 22–24 Jun 2026)
+## Phase 3 — Automated Dispatch RPC ✓ Complete
 
 ### Tasks
-- [ ] Postgres function `assign_nearest_ambulance(incident_id)` with PostGIS ST_Distance
-- [ ] Supabase RPC exposed; called from Flutter via `supabase.rpc(...)`
-- [ ] "Dispatch" button on Dispatcher Dashboard for `logged` incidents
-- [ ] Edge case UI: no ambulance available — clear error state + manual override
-- [ ] `update_incident_status` function for status transitions (dispatcher + driver roles)
+- [x] Postgres function `dispatch_incident(p_incident_id, p_ambulance_id DEFAULT NULL)` — auto picks nearest available ambulance via PostGIS ST_Distance; accepts optional manual ambulance override; `SECURITY DEFINER`, atomic transaction, GRANT to authenticated
+- [x] Postgres function `update_incident_status(p_incident_id, p_new_status)` — transitions incident lifecycle, syncs ambulance status, writes incident_events audit row; callable by dispatcher, admin, and driver roles
+- [x] Migration `20260617000004_dispatch_rpcs.sql` contains both functions
+- [x] `IncidentService.dispatchIncident()` and `dispatchIncidentManual()` call the RPC via `supabase.rpc()`
+- [x] `IncidentService.updateIncidentStatus()` calls `update_incident_status` RPC
+- [x] `DispatchException` class with typed error codes for clean UI error handling
+- [x] "Dispatch Nearest" button on incident cards (logged status only); shows loading spinner while RPC runs
+- [x] On `no_ambulance_available` error: inline red banner + "Manual" fallback button appears
+- [x] `ManualDispatchDialog` — lists all ambulances sorted by distance from incident, with status badges, km distance, and per-row "Assign" button
+- [x] Assigned ambulance plate shown on dispatched/en_route/arrived cards
 
 ### Needs Team Testing
-- Click "Dispatch" on a logged incident with seeded ambulances at varying distances.
-- Confirm the nearest ambulance is assigned (check ambulance coordinates in Supabase table).
-- Confirm both `incidents` and `ambulances` records update atomically.
-- Test the "no ambulance available" edge case (set all ambulances to `busy` in DB first).
+- Log in as Dispatcher. Log a new incident with a map location near Kampala.
+- Click "Dispatch Nearest" — confirm it auto-assigns the geographically nearest ambulance (verify in Supabase table: `incidents.assigned_ambulance_id`, `ambulances.status = 'dispatched'`).
+- Confirm both records update atomically and the card updates to "DISPATCHED" status without page refresh.
+- Set all ambulances to `busy` in the DB, then click "Dispatch Nearest" — confirm the red error banner appears and the "Manual" button appears.
+- Click "Manual" — confirm the `ManualDispatchDialog` opens showing all ambulances with status and distance. Pick one and confirm dispatch succeeds.
+- Check `incident_events` table in Supabase — confirm an audit row was inserted for each dispatch.
 
 ---
 

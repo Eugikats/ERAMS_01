@@ -9,10 +9,12 @@ import '../../models/ambulance.dart';
 import '../../models/hospital.dart';
 import '../../models/incident.dart';
 import '../../services/auth_service.dart';
+import '../../services/incident_service.dart';
 import '../../state/auth_provider.dart';
 import '../../state/dispatcher_provider.dart';
 import '../../widgets/app_logo.dart';
 import '../../widgets/status_badge.dart';
+import 'manual_dispatch_dialog.dart';
 import 'new_incident_form.dart';
 
 class DispatcherDashboard extends ConsumerStatefulWidget {
@@ -417,15 +419,79 @@ class _EmptyState extends StatelessWidget {
 // Incident Card
 // ---------------------------------------------------------------------------
 
-class _IncidentCard extends ConsumerWidget {
+class _IncidentCard extends ConsumerStatefulWidget {
   final Incident incident;
   final VoidCallback onTap;
   const _IncidentCard({required this.incident, required this.onTap});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_IncidentCard> createState() => _IncidentCardState();
+}
+
+class _IncidentCardState extends ConsumerState<_IncidentCard> {
+  bool _dispatching = false;
+  String? _dispatchError;
+  bool _noAmbulanceAvailable = false;
+
+  Future<void> _dispatchNearest() async {
+    setState(() {
+      _dispatching = true;
+      _dispatchError = null;
+      _noAmbulanceAvailable = false;
+    });
+    try {
+      await IncidentService().dispatchIncident(widget.incident.id);
+      // Realtime subscription will refresh the card automatically.
+    } on DispatchException catch (e) {
+      setState(() {
+        _dispatching = false;
+        if (e.code == 'no_ambulance_available') {
+          _noAmbulanceAvailable = true;
+          _dispatchError = e.message;
+        } else {
+          _dispatchError = e.message;
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _dispatching = false;
+        _dispatchError = 'Dispatch failed: ${e.toString()}';
+      });
+    }
+  }
+
+  Future<void> _openManualDispatch() async {
+    final ambulances = ref.read(ambulancesNotifierProvider).valueOrNull ?? [];
+    if (!mounted) return;
+    final assigned = await showManualDispatchDialog(
+      context,
+      incident: widget.incident,
+      ambulances: ambulances,
+    );
+    if (assigned && mounted) {
+      setState(() {
+        _dispatchError = null;
+        _noAmbulanceAvailable = false;
+        _dispatching = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final selectedId = ref.watch(selectedIncidentIdProvider);
-    final isSelected = selectedId == incident.id;
+    final isSelected = selectedId == widget.incident.id;
+    final ambulances = ref.watch(ambulancesNotifierProvider).valueOrNull ?? [];
+
+    // Find assigned ambulance plate if available
+    String? assignedPlate;
+    if (widget.incident.assignedAmbulanceId != null) {
+      final found = ambulances.where(
+          (a) => a.id == widget.incident.assignedAmbulanceId);
+      if (found.isNotEmpty) assignedPlate = found.first.plateNumber;
+    }
+
+    final isLogged = widget.incident.status == IncidentStatus.logged;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -448,36 +514,38 @@ class _IncidentCard extends ConsumerWidget {
       child: Card(
         margin: EdgeInsets.zero,
         child: InkWell(
-          onTap: onTap,
+          onTap: widget.onTap,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // ── Row 1: status badge + time ──
                 Row(
                   children: [
-                    StatusBadge(status: incident.status.dbValue),
+                    StatusBadge(status: widget.incident.status.dbValue),
                     const Spacer(),
                     Text(
-                      _timeAgo(incident.createdAt),
+                      _timeAgo(widget.incident.createdAt),
                       style: const TextStyle(
                           fontSize: 11, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
+                // ── Nature of emergency ──
                 Text(
-                  incident.natureOfEmergency.isEmpty
+                  widget.incident.natureOfEmergency.isEmpty
                       ? 'Unknown Emergency'
-                      : incident.natureOfEmergency,
+                      : widget.incident.natureOfEmergency,
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
-                if (incident.locationDescription.isNotEmpty) ...[
+                if (widget.incident.locationDescription.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Row(
                     children: [
@@ -486,7 +554,7 @@ class _IncidentCard extends ConsumerWidget {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          incident.locationDescription,
+                          widget.incident.locationDescription,
                           style: const TextStyle(
                               fontSize: 12, color: AppColors.textSecondary),
                           maxLines: 1,
@@ -497,50 +565,137 @@ class _IncidentCard extends ConsumerWidget {
                   ),
                 ],
                 const SizedBox(height: 6),
+                // ── Caller info ──
                 Row(
                   children: [
                     const Icon(Icons.person_outline,
                         size: 13, color: AppColors.textHint),
                     const SizedBox(width: 4),
                     Text(
-                      incident.reporterName.isEmpty
+                      widget.incident.reporterName.isEmpty
                           ? 'Unknown caller'
-                          : incident.reporterName,
+                          : widget.incident.reporterName,
                       style: const TextStyle(
                           fontSize: 12, color: AppColors.textHint),
                     ),
-                    if (incident.reporterPhone.isNotEmpty) ...[
-                      const Text(
-                        '  ·  ',
-                        style:
-                            TextStyle(fontSize: 12, color: AppColors.textHint),
-                      ),
+                    if (widget.incident.reporterPhone.isNotEmpty) ...[
+                      const Text('  ·  ',
+                          style: TextStyle(
+                              fontSize: 12, color: AppColors.textHint)),
                       const Icon(Icons.phone_outlined,
                           size: 12, color: AppColors.textHint),
                       const SizedBox(width: 3),
                       Text(
-                        incident.reporterPhone,
+                        widget.incident.reporterPhone,
                         style: const TextStyle(
                             fontSize: 12, color: AppColors.textHint),
                       ),
                     ],
                   ],
                 ),
-                if (incident.latitude != null) ...[
+                // ── Show on map hint ──
+                if (widget.incident.latitude != null) ...[
                   const SizedBox(height: 6),
                   const Row(
                     children: [
-                      Icon(Icons.gps_fixed,
-                          size: 12, color: AppColors.primary),
+                      Icon(Icons.gps_fixed, size: 12, color: AppColors.primary),
                       SizedBox(width: 4),
                       Text(
-                        'Show on map',
+                        'Tap to show on map',
                         style: TextStyle(
                           fontSize: 11,
                           color: AppColors.primary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+                    ],
+                  ),
+                ],
+                // ── Assigned ambulance (dispatched and beyond) ──
+                if (assignedPlate != null) ...[
+                  const SizedBox(height: 8),
+                  const Divider(height: 1),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.airport_shuttle,
+                          size: 14, color: AppColors.statusDispatched),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Ambulance: $assignedPlate',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.statusDispatched,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                // ── Dispatch section (logged incidents only) ──
+                if (isLogged) ...[
+                  const SizedBox(height: 10),
+                  const Divider(height: 1),
+                  const SizedBox(height: 10),
+                  // Error banner
+                  if (_dispatchError != null) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.errorSurface,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        _dispatchError!,
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.error),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  // Dispatch button row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: _dispatching ? null : _dispatchNearest,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(0, 36),
+                            backgroundColor: AppColors.statusDispatched,
+                          ),
+                          icon: _dispatching
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Icon(Icons.send_outlined, size: 14),
+                          label: Text(
+                            _dispatching
+                                ? 'Dispatching…'
+                                : 'Dispatch Nearest',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ),
+                      if (_noAmbulanceAvailable) ...[
+                        const SizedBox(width: 8),
+                        OutlinedButton(
+                          onPressed: _dispatching ? null : _openManualDispatch,
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 36),
+                            side: const BorderSide(
+                                color: AppColors.statusDispatched),
+                            foregroundColor: AppColors.statusDispatched,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                          ),
+                          child: const Text('Manual',
+                              style: TextStyle(fontSize: 12)),
+                        ),
+                      ],
                     ],
                   ),
                 ],
