@@ -1,2 +1,9 @@
-// TODO(phase-2): implement ambulance read/status methods
-// TODO(phase-4): add periodic GPS location update writes
+import '../models/ambulance.dart';
+import 'supabase_service.dart';
+
+class AmbulanceService {
+  Future<List<Ambulance>> fetchAllAmbulances() async {
+    final data = await supabaseClient.from('ambulances').select();
+    return (data as List).map((e) => Ambulance.fromJson(e as Map<String, dynamic>)).toList();
+  }
+}

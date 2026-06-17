@@ -1,2 +1,3 @@
-// TODO(phase-2): subscribe to incidents and ambulances channels
-// TODO(phase-4): subscribe filtered to driver's ambulance_id
+// Realtime subscriptions are owned directly by their respective Riverpod
+// notifiers in lib/state/dispatcher_provider.dart.
+// Phase 4 will add a driver-specific filtered subscription here.

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/app_colors.dart';
 import 'features/auth/login_screen.dart';
+import 'features/dispatcher/dispatcher_dashboard.dart';
 import 'services/auth_service.dart';
 import 'services/supabase_service.dart';
 import 'widgets/app_logo.dart';
@@ -43,8 +44,7 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: '/dispatcher',
-      builder: (_, __) =>
-          const _RolePlaceholderScreen(role: 'Dispatcher', icon: Icons.headset_mic_outlined),
+      builder: (_, __) => const DispatcherDashboard(),
     ),
     GoRoute(
       path: '/driver',

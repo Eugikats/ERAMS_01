@@ -57,21 +57,23 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 2 — Dispatcher Module: Incident Logging & Map (Target: 20–22 Jun 2026)
+## Phase 2 — Dispatcher Module: Incident Logging & Map ✓ Complete
 
 ### Tasks
 - [✓] **Theme pass** — `AppColors`, `AppTheme` (Material 3), status colour constants, placeholder logo widget — wired into `EramsApp` (done during Phase 1 setup)
-- [ ] "New Incident" form: location pin drop, nature of emergency, patient notes, hospital selector
-- [ ] Map widget: incident markers, ambulance markers (colour-coded by status), hospital markers
-- [ ] Wire incident creation to `incidents` table
-- [ ] Dispatcher Dashboard: active incident cards with status badges, filterable by status
-- [ ] Realtime subscription for `incidents` and `ambulances` — live updates on map/list
+- [x] "New Incident" form: location pin drop on map (`LocationPickerDialog`), nature of emergency dropdown (10 types), patient notes, hospital selector
+- [x] Map widget (`_MapPanel`): incident markers (red/tappable), ambulance markers (colour-coded by status with tooltip), hospital markers (blue), map legend overlay
+- [x] Wire incident creation to `incidents` table via `IncidentService.createIncident()`
+- [x] Dispatcher Dashboard (`DispatcherDashboard`): active incident cards with status badges, filterable by status (All / Logged / Dispatched / En Route / Arrived), responsive two-panel layout (>= 800px) or tabbed layout (< 800px)
+- [x] Realtime subscription for `incidents` and `ambulances` — live updates via `IncidentsNotifier` and `AmbulancesNotifier` (Supabase Realtime → re-fetch on change)
 
 ### Needs Team Testing
-- Log a new incident as a Dispatcher.
-- Confirm it appears on the Dashboard list AND the map instantly (without page refresh).
-- Have a second browser session open — confirm the incident appears there in real time too.
-- Confirm all status badge colours match the agreed palette (available=green, dispatched=orange, en_route=blue, etc.).
+- Log in as the Dispatcher demo account and verify the dashboard loads with the map centred on Kampala.
+- Click "New Incident": pick a location on the map, fill in all fields, submit — confirm the card appears in the list and a red marker appears on the map without page refresh.
+- Open a second browser tab as Dispatcher — confirm the new incident appears there in real time too.
+- Confirm status badge colours: logged=teal, dispatched=orange, en_route=blue, arrived=purple.
+- Tap an incident card → map should fly to that incident's location and highlight the card.
+- Confirm ambulance markers appear with correct status colours (seeded ambulances have Kampala coordinates).
 
 ---
 
