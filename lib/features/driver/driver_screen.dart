@@ -8,9 +8,12 @@ import '../../models/ambulance.dart';
 import '../../models/hospital.dart';
 import '../../models/incident.dart';
 import '../../services/auth_service.dart';
+import '../../services/profile_service.dart';
 import '../../state/auth_provider.dart';
 import '../../state/driver_provider.dart';
 import '../../widgets/app_logo.dart';
+import '../../widgets/incident_history_list.dart';
+import '../../widgets/profile_edit_sheet.dart';
 import '../../widgets/status_badge.dart';
 
 class DriverScreen extends ConsumerStatefulWidget {
@@ -20,20 +23,56 @@ class DriverScreen extends ConsumerStatefulWidget {
   ConsumerState<DriverScreen> createState() => _DriverScreenState();
 }
 
-class _DriverScreenState extends ConsumerState<DriverScreen> {
+class _DriverScreenState extends ConsumerState<DriverScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+  List<Map<String, dynamic>> _historyRows = [];
+  bool _historyLoading = false;
+  String? _historyError;
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.index == 1 && _historyRows.isEmpty) {
+        _loadHistory();
+      }
+    });
     // Auto-start GPS once the ambulance data is ready
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeStartGps());
   }
 
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
   Future<void> _maybeStartGps() async {
-    // Wait for ambulance to load before deciding
     final ambulance = await ref.read(driverAmbulanceProvider.future);
     if (!mounted) return;
     if (ambulance != null && ambulance.status != AmbulanceStatus.offline) {
       await ref.read(gpsNotifierProvider.notifier).startTracking();
+    }
+  }
+
+  Future<void> _loadHistory() async {
+    final ambulanceId =
+        ref.read(driverAmbulanceProvider).valueOrNull?.id;
+    if (ambulanceId == null) return;
+    setState(() {
+      _historyLoading = true;
+      _historyError = null;
+    });
+    try {
+      final rows =
+          await ProfileService().fetchDriverHistory(ambulanceId);
+      if (mounted) setState(() => _historyRows = rows);
+    } catch (e) {
+      if (mounted) setState(() => _historyError = e.toString());
+    } finally {
+      if (mounted) setState(() => _historyLoading = false);
     }
   }
 
@@ -50,6 +89,11 @@ class _DriverScreenState extends ConsumerState<DriverScreen> {
         title: const AppLogoHorizontal(),
         actions: [
           IconButton(
+            tooltip: 'My profile',
+            icon: const Icon(Icons.account_circle_outlined),
+            onPressed: () => showProfileSheet(context),
+          ),
+          IconButton(
             tooltip: 'Sign out',
             icon: const Icon(Icons.logout),
             onPressed: () async {
@@ -59,8 +103,19 @@ class _DriverScreenState extends ConsumerState<DriverScreen> {
             },
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(icon: Icon(Icons.airport_shuttle_outlined), text: 'Active'),
+            Tab(icon: Icon(Icons.history), text: 'History'),
+          ],
+        ),
       ),
-      body: ambulanceAsync.when(
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // ── Active tab ────────────────────────────────────────
+          ambulanceAsync.when(
         loading: () =>
             const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
@@ -139,6 +194,15 @@ class _DriverScreenState extends ConsumerState<DriverScreen> {
             ),
           );
         },
+      ),
+          // ── History tab ───────────────────────────────────────
+          IncidentHistoryList(
+            rows: _historyRows,
+            isLoading: _historyLoading,
+            error: _historyError,
+            onRefresh: _loadHistory,
+          ),
+        ],
       ),
     );
   }

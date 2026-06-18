@@ -10,9 +10,12 @@ import '../../models/hospital.dart';
 import '../../models/incident.dart';
 import '../../services/auth_service.dart';
 import '../../services/incident_service.dart';
+import '../../services/profile_service.dart';
 import '../../state/auth_provider.dart';
 import '../../state/dispatcher_provider.dart';
 import '../../widgets/app_logo.dart';
+import '../../widgets/incident_history_list.dart';
+import '../../widgets/profile_edit_sheet.dart';
 import '../../widgets/status_badge.dart';
 import 'manual_dispatch_dialog.dart';
 import 'new_incident_form.dart';
@@ -25,8 +28,45 @@ class DispatcherDashboard extends ConsumerStatefulWidget {
       _DispatcherDashboardState();
 }
 
-class _DispatcherDashboardState extends ConsumerState<DispatcherDashboard> {
+class _DispatcherDashboardState extends ConsumerState<DispatcherDashboard>
+    with SingleTickerProviderStateMixin {
   final _mapController = MapController();
+  late final TabController _tabController;
+  List<Map<String, dynamic>> _historyRows = [];
+  bool _historyLoading = false;
+  String? _historyError;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.index == 1 && _historyRows.isEmpty) {
+        _loadHistory();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadHistory() async {
+    setState(() {
+      _historyLoading = true;
+      _historyError = null;
+    });
+    try {
+      final rows = await ProfileService().fetchDispatcherHistory();
+      if (mounted) setState(() => _historyRows = rows);
+    } catch (e) {
+      if (mounted) setState(() => _historyError = e.toString());
+    } finally {
+      if (mounted) setState(() => _historyLoading = false);
+    }
+  }
 
   void _flyToIncident(Incident incident) {
     if (incident.latitude != null && incident.longitude != null) {
@@ -43,7 +83,7 @@ class _DispatcherDashboardState extends ConsumerState<DispatcherDashboard> {
     final incidentsAsync = ref.watch(incidentsNotifierProvider);
     final ambulancesAsync = ref.watch(ambulancesNotifierProvider);
     final hospitalsAsync = ref.watch(hospitalsProvider);
-    final profile = ref.watch(currentProfileProvider).valueOrNull;
+    ref.watch(currentProfileProvider); // kept for auth guard
     final filter = ref.watch(incidentFilterProvider);
 
     // Filtered incident list
@@ -59,17 +99,11 @@ class _DispatcherDashboardState extends ConsumerState<DispatcherDashboard> {
       appBar: AppBar(
         title: const AppLogoHorizontal(),
         actions: [
-          if (profile != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Center(
-                child: Text(
-                  profile.fullName,
-                  style: const TextStyle(
-                      color: Colors.white70, fontSize: 13),
-                ),
-              ),
-            ),
+          IconButton(
+            tooltip: 'My profile',
+            icon: const Icon(Icons.account_circle_outlined),
+            onPressed: () => showProfileSheet(context),
+          ),
           IconButton(
             tooltip: 'Sign out',
             icon: const Icon(Icons.logout),
@@ -79,8 +113,18 @@ class _DispatcherDashboardState extends ConsumerState<DispatcherDashboard> {
             },
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(icon: Icon(Icons.dashboard_outlined), text: 'Live'),
+            Tab(icon: Icon(Icons.history), text: 'History'),
+          ],
+        ),
       ),
-      body: LayoutBuilder(
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= 800;
 
@@ -153,7 +197,16 @@ class _DispatcherDashboardState extends ConsumerState<DispatcherDashboard> {
           );
         },
       ),
-      // FAB only shown on narrow screens (wide has inline button)
+          // History tab
+          IncidentHistoryList(
+            rows: _historyRows,
+            isLoading: _historyLoading,
+            error: _historyError,
+            onRefresh: _loadHistory,
+          ),
+        ],
+      ),
+      // FAB only shown on narrow screens when on the Live tab
       floatingActionButton: LayoutBuilder(
         builder: (context, constraints) {
           if (constraints.maxWidth >= 800) return const SizedBox.shrink();

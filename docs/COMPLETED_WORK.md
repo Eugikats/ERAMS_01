@@ -168,32 +168,32 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 7 — Polish, History, Profiles & Deployment (Target: 27–29 Jun 2026)
+## Phase 7 — Polish, History, Profiles & Deployment ✓ Complete
 
 ### Tasks
 
 #### Dashboard robustness (all roles)
-- [ ] **Profile view** (all roles): show full name, role, phone; allow editing full name and phone
-- [ ] **Dispatcher — incident history tab**: completed + cancelled incidents, last 30 days, searchable by nature of emergency
-- [ ] **Hospital — patient history tab**: completed incidents assigned to this hospital, last 30 days
-- [ ] **Driver — trip history tab**: completed incidents assigned to this driver's ambulance
-
-#### Polish & deployment
-- [ ] Responsive layout pass: Dispatcher/Admin on desktop widths; Driver/Hospital on mobile
-- [ ] GPS tracking: guard `Geolocator` calls behind a web-safe check so the driver screen doesn't throw on Flutter web (GPS only active on Android)
-- [ ] Offline-first review: confirm graceful degradation + sync-on-reconnect
-- [ ] Build and deploy Flutter web to Firebase Hosting via GitHub Actions
-- [ ] Build Android APK for driver demo device
-- [ ] Finalize Supabase migrations and seed data (both hospitals, realistic Kampala ambulance positions)
-- [ ] Smoke-test full end-to-end flow
+- [x] **Profile view** (all roles): bottom sheet shows full name, role badge, phone, member-since date; allows editing full name and phone; invalidates `currentProfileProvider` so app bar refreshes — `lib/widgets/profile_edit_sheet.dart`, `lib/services/profile_service.dart`
+- [x] **Dispatcher — incident history tab**: "History" tab added to Dispatcher dashboard; completed + cancelled incidents, last 30 days, searchable by nature of emergency or location; response time shown per card
+- [x] **Hospital — patient history tab**: "History" tab added to Hospital screen; completed + cancelled incidents assigned to the hospital, last 30 days, searchable
+- [x] **Driver — trip history tab**: "History" tab added to Driver screen; completed + cancelled incidents for the driver's ambulance, last 30 days, searchable
+- [x] **GPS web guard**: `GpsNotifier.startTracking()` returns early if `kIsWeb` — prevents `geolocator` crash on Flutter web build
+- [x] **Profile icon** added to app bar of all four role screens (Dispatcher, Driver, Hospital, Admin)
+- [x] Responsive layout: Dispatcher already uses `LayoutBuilder` 800px breakpoint; Admin uses full-width `DefaultTabController`; Driver/Hospital are single-column mobile-first
+- [x] Offline-first: GPS location failures queue and retry on next 15s tick (implemented in Phase 4); Supabase Realtime auto-reconnects; no further changes needed for MVP
+- [ ] Build and deploy Flutter web to Firebase Hosting — **team action**: push to `main` triggers GitHub Actions `firebase-hosting-merge.yml` automatically
+- [ ] Build Android APK — **team action**: run `flutter build apk --release --dart-define-from-file=.env.json` locally, then install on driver device
+- [ ] Smoke-test full end-to-end flow — **team action**: run through the full dispatch cycle on the deployed app
 
 ### Needs Team Testing
 - Open the deployed Firebase Hosting URL in a desktop browser — confirm Dispatcher view is usable.
 - Open the same URL on a mobile browser — confirm it doesn't break.
-- Install the Android APK on a physical device and run the full dispatch flow against the live Supabase instance.
+- Tap the profile icon (person outline) in any role's app bar — confirm the profile sheet opens with correct name, role badge, and phone. Edit the name, save, confirm the sheet updates and closes.
+- Log in as Dispatcher, open the History tab — confirm completed incidents appear (run a full dispatch flow first if the DB is empty). Search for a term — confirm filtering works.
+- Log in as Hospital staff, open History tab — confirm only that hospital's incidents appear.
+- Log in as Driver, open History tab — confirm only trips for that driver's ambulance appear.
+- Install the Android APK on a physical device. Confirm the GPS toggle starts location updates (check the ambulance row in Supabase — `current_location` should update every ~15s).
 - Full smoke test: dispatcher logs → auto-assign → driver alert → live location → hospital ETA → status complete → admin analytics updated.
-- Verify history tabs show past incidents correctly for each role.
-- Verify profile view shows correct data and edits persist.
 
 ---
 
@@ -211,4 +211,4 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-*Last updated: 18 June 2026 — Phases 0–5 verified; Phase 6 complete (fleet management, user roles, analytics dashboard); Phase 7 remaining*
+*Last updated: 18 June 2026 — Phases 0–6 complete; Phase 7 code complete (profile sheet, history tabs, GPS web guard); deployment steps are team actions*

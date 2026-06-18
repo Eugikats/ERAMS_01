@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -174,6 +175,8 @@ class GpsNotifier extends AsyncNotifier<Position?> {
   }
 
   Future<void> startTracking() async {
+    // GPS hardware APIs are not available on Flutter web.
+    if (kIsWeb) return;
     if (!await _ensurePermission()) return;
 
     ref.read(gpsActiveProvider.notifier).state = true;

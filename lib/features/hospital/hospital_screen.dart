@@ -9,24 +9,80 @@ import '../../models/hospital.dart';
 import '../../models/incident.dart';
 import '../../services/auth_service.dart';
 import '../../services/hospital_service.dart';
+import '../../services/profile_service.dart';
 import '../../state/hospital_provider.dart';
 import '../../widgets/app_logo.dart';
+import '../../widgets/incident_history_list.dart';
+import '../../widgets/profile_edit_sheet.dart';
 import '../../widgets/status_badge.dart';
 
-class HospitalScreen extends ConsumerWidget {
+class HospitalScreen extends ConsumerStatefulWidget {
   const HospitalScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HospitalScreen> createState() => _HospitalScreenState();
+}
+
+class _HospitalScreenState extends ConsumerState<HospitalScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+  List<Map<String, dynamic>> _historyRows = [];
+  bool _historyLoading = false;
+  String? _historyError;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.index == 1 && _historyRows.isEmpty) {
+        _loadHistory();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadHistory() async {
+    final hospitalId =
+        ref.read(myHospitalProvider).valueOrNull?.id;
+    if (hospitalId == null) return;
+    setState(() {
+      _historyLoading = true;
+      _historyError = null;
+    });
+    try {
+      final rows =
+          await ProfileService().fetchHospitalHistory(hospitalId);
+      if (mounted) setState(() => _historyRows = rows);
+    } catch (e) {
+      if (mounted) setState(() => _historyError = e.toString());
+    } finally {
+      if (mounted) setState(() => _historyLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final hospitalAsync = ref.watch(myHospitalProvider);
     final incidentsAsync = ref.watch(hospitalIncidentsProvider);
-    final ambulances = ref.watch(hospitalAmbulancesProvider).valueOrNull ?? [];
+    final ambulances =
+        ref.watch(hospitalAmbulancesProvider).valueOrNull ?? [];
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const AppLogoHorizontal(),
         actions: [
+          IconButton(
+            tooltip: 'My profile',
+            icon: const Icon(Icons.account_circle_outlined),
+            onPressed: () => showProfileSheet(context),
+          ),
           IconButton(
             tooltip: 'Sign out',
             icon: const Icon(Icons.logout),
@@ -36,73 +92,95 @@ class HospitalScreen extends ConsumerWidget {
             },
           ),
         ],
-      ),
-      body: hospitalAsync.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Text('Error: $e',
-              style: const TextStyle(color: AppColors.error)),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(icon: Icon(Icons.local_hospital_outlined), text: 'Incoming'),
+            Tab(icon: Icon(Icons.history), text: 'History'),
+          ],
         ),
-        data: (hospital) {
-          if (hospital == null) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Text(
-                  'No hospital is linked to your account.\n'
-                  'Contact the administrator.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      color: AppColors.textSecondary, fontSize: 15),
-                ),
-              ),
-            );
-          }
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Hospital header
-              _HospitalHeader(hospital: hospital, incidentsAsync: incidentsAsync),
-              const Divider(height: 1),
-              // Incident list
-              Expanded(
-                child: incidentsAsync.when(
-                  loading: () => const Center(
-                      child: CircularProgressIndicator()),
-                  error: (e, _) => Center(
-                    child: Text('Error loading incidents: $e',
-                        style: const TextStyle(
-                            color: AppColors.error)),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // ── Incoming tab ──────────────────────────────────────
+          hospitalAsync.when(
+            loading: () =>
+                const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(
+              child: Text('Error: $e',
+                  style: const TextStyle(color: AppColors.error)),
+            ),
+            data: (hospital) {
+              if (hospital == null) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Text(
+                      'No hospital is linked to your account.\n'
+                      'Contact the administrator.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          color: AppColors.textSecondary, fontSize: 15),
+                    ),
                   ),
-                  data: (incidents) => incidents.isEmpty
-                      ? _EmptyState(hospitalName: hospital.name)
-                      : ListView.separated(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: incidents.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (_, i) {
-                            final amb = incidents[i].assignedAmbulanceId !=
-                                    null
-                                ? ambulances.where((a) =>
-                                        a.id ==
-                                        incidents[i].assignedAmbulanceId)
-                                    .firstOrNull
-                                : null;
-                            return _IncomingPatientCard(
-                              incident: incidents[i],
-                              hospital: hospital,
-                              ambulance: amb,
-                            );
-                          },
-                        ),
-                ),
-              ),
-            ],
-          );
-        },
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _HospitalHeader(
+                      hospital: hospital,
+                      incidentsAsync: incidentsAsync),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: incidentsAsync.when(
+                      loading: () => const Center(
+                          child: CircularProgressIndicator()),
+                      error: (e, _) => Center(
+                        child: Text('Error loading incidents: $e',
+                            style: const TextStyle(
+                                color: AppColors.error)),
+                      ),
+                      data: (incidents) => incidents.isEmpty
+                          ? _EmptyState(hospitalName: hospital.name)
+                          : ListView.separated(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: incidents.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 12),
+                              itemBuilder: (_, i) {
+                                final amb = incidents[i]
+                                            .assignedAmbulanceId !=
+                                        null
+                                    ? ambulances
+                                        .where((a) =>
+                                            a.id ==
+                                            incidents[i]
+                                                .assignedAmbulanceId)
+                                        .firstOrNull
+                                    : null;
+                                return _IncomingPatientCard(
+                                  incident: incidents[i],
+                                  hospital: hospital,
+                                  ambulance: amb,
+                                );
+                              },
+                            ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          // ── History tab ───────────────────────────────────────
+          IncidentHistoryList(
+            rows: _historyRows,
+            isLoading: _historyLoading,
+            error: _historyError,
+            onRefresh: _loadHistory,
+          ),
+        ],
       ),
     );
   }

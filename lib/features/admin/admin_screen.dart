@@ -9,6 +9,7 @@ import '../../models/profile.dart';
 import '../../services/auth_service.dart';
 import '../../state/admin_provider.dart';
 import '../../widgets/app_logo.dart';
+import '../../widgets/profile_edit_sheet.dart';
 import '../../widgets/status_badge.dart';
 
 class AdminScreen extends ConsumerWidget {
@@ -22,6 +23,11 @@ class AdminScreen extends ConsumerWidget {
         appBar: AppBar(
           title: const AppLogoHorizontal(),
           actions: [
+            IconButton(
+              tooltip: 'My profile',
+              icon: const Icon(Icons.account_circle_outlined),
+              onPressed: () => showProfileSheet(context),
+            ),
             IconButton(
               tooltip: 'Sign out',
               icon: const Icon(Icons.logout),
