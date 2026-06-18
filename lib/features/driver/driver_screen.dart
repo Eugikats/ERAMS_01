@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../models/ambulance.dart';
@@ -436,6 +437,22 @@ class _ActiveIncidentCardState
     extends ConsumerState<_ActiveIncidentCard> {
   bool _advancing = false;
 
+  Future<void> _navigateToScene() async {
+    final lat = widget.incident.latitude;
+    final lng = widget.incident.longitude;
+    if (lat == null || lng == null) return;
+    final uri = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving',
+    );
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open Google Maps')),
+        );
+      }
+    }
+  }
+
   Future<void> _advance() async {
     setState(() => _advancing = true);
     try {
@@ -566,6 +583,30 @@ class _ActiveIncidentCardState
                   ],
                 ),
               ),
+              // Navigate to scene
+              if (incident.latitude != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _navigateToScene,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 48),
+                        side: const BorderSide(color: AppColors.primary),
+                        foregroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: const Icon(Icons.navigation_outlined, size: 18),
+                      label: const Text(
+                        'Navigate to Scene',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ),
               // Action button
               if (buttonLabel != null)
                 Padding(

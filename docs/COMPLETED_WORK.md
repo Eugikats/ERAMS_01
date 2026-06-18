@@ -149,10 +149,13 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 ## Phase 6 — Admin Module: Fleet & Analytics (Target: 26–27 Jun 2026)
 
 ### Tasks
+- [x] **Navigate to Scene** button on driver active incident card — opens Google Maps with incident location pre-loaded as destination, driving mode selected; only renders when incident has a pinned location (`latitude != null`)
 - [ ] Admin screens: manage `profiles` (assign roles), manage `ambulances` (add/edit/assign driver)
 - [ ] Basic analytics: average response time (created_at → arrived_at), incident counts by status, incidents by hospital
 
 ### Needs Team Testing
+- Log in as driver demo account, get dispatched to an incident, and confirm the "Navigate to Scene" button appears on the active incident card.
+- Tap "Navigate to Scene" — confirm Google Maps opens with the incident location pre-loaded as destination and driving mode selected.
 - Log in as admin, create a new ambulance record and assign it to a driver.
 - Create a new user and assign them the "dispatcher" role.
 - Confirm the analytics dashboard shows correct counts from seeded/test incident data.
@@ -203,4 +206,4 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-*Last updated: 17 June 2026 — Phases 0–3 verified; Phases 4–5 built (Phase 5 acknowledge bug fixed); Phase 7 plan updated with history + profile features*
+*Last updated: 18 June 2026 — Phases 0–3 verified; Phases 4–5 built (Phase 5 acknowledge bug fixed); Phase 6 started (Navigate to Scene button); Phase 7 plan updated with history + profile features*
