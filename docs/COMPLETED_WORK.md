@@ -197,18 +197,20 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 8 — Validation, Documentation & Demo Prep (Target: 29–30 Jun 2026)
+## Phase 8 — Validation, Documentation & Demo Prep ✓ Code Complete
 
 ### Tasks
-- [ ] Prepare evaluation form (ease of use, GPS accuracy, dispatch speed, communication effectiveness)
-- [ ] Update README with final setup/deployment instructions, architecture diagram, known limitations
-- [ ] Capture screenshots/screen recordings for final report and oral defense
-- [ ] Tag release `v1.0-demo` in GitHub
+- [x] **Evaluation form** — `docs/EVALUATION_FORM.md`: structured questionnaire with 6 sections covering ease of use (A), dispatch speed/automation (B), GPS accuracy/driver experience (C), hospital communication (D), performance/reliability (E), and overall assessment (F); mirrors original proposal Section F questionnaire
+- [x] **README updated** — final setup/deployment instructions, ASCII architecture diagram, ERD summary, key design decisions table, known limitations, all 8 build phases, demo credentials, Android APK build command
+- [ ] **Screenshots/screen recordings** — **team action**: capture each role's golden path (login → main flow → history tab) for the final report and oral defense slides
+- [ ] **Tag `v1.0-demo`** — **team action**: `git tag v1.0-demo && git push origin v1.0-demo`
+- [ ] **Firebase deploy** — **team action**: push to `main` (CI auto-deploys); update README with live URL once available
 
 ### Needs Team Testing
-- Run through the evaluation form as if you are an end user (dispatcher, driver, hospital staff).
-- Confirm all screenshots/recordings capture the key flows clearly for the final report.
+- Print `docs/EVALUATION_FORM.md` or share as PDF; run informal walkthroughs with at least one person per role.
+- Record a screen capture of the full dispatch flow: dispatcher logs → auto-assign → driver En Route → hospital ETA → Completed → admin analytics. Use this for the oral defense.
+- Confirm the live Firebase Hosting URL works on both desktop and mobile browsers before the defense.
 
 ---
 
-*Last updated: 18 June 2026 — Phases 0–6 complete; Phase 7 code complete (profile sheet, history tabs, GPS web guard); deployment steps are team actions*
+*Last updated: 18 June 2026 — Phases 0–8 code complete; remaining items are team actions (deploy, screenshots, tag v1.0-demo)*

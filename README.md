@@ -4,41 +4,119 @@
 ![Supabase](https://img.shields.io/badge/Supabase-Backend-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-Hosting-FFCA28?style=flat-square&logo=firebase&logoColor=black)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-![Status](https://img.shields.io/badge/Status-In%20Development-yellow?style=flat-square)
+![Status](https://img.shields.io/badge/Status-v1.0--demo-brightgreen?style=flat-square)
 
 > **Final Year Project — Bachelor of Information Technology and Computing**  
 > Kyambogo University | Uganda | Academic Year 2025–2026
 
 ---
 
-## Project Description
+## Live Demo
 
-ERAMS digitises emergency ambulance dispatch across selected hospitals in Uganda — one public (Mulago National Referral Hospital) and one private (Healthstone Hospital, Banda). The system replaces manual telephone-based dispatch and paper logbooks with:
+| Target | URL / File |
+|--------|-----------|
+| **Web app (Dispatcher, Hospital, Admin)** | Deployed via Firebase Hosting — see GitHub Actions for the live URL after CI passes |
+| **Android APK (Driver)** | Built locally: `flutter build apk --release --dart-define-from-file=.env.json` |
 
-- **Automated nearest-ambulance dispatch** using PostGIS geospatial queries
-- **Live GPS tracking** of ambulances in real time (Supabase Realtime)
-- **Role-based access control** (Dispatcher, Driver, Hospital Staff, Administrator)
-- **Advance hospital notifications** with patient condition and ETA
-- **Analytics dashboard** for response-time performance evaluation
-- **Offline resilience** for drivers in low-connectivity environments
+**Demo credentials** (Supabase Auth):
 
-Built as a **single Flutter codebase** targeting web (Dispatcher, Hospital, Admin) and Android (Ambulance Driver), with Supabase as the backend and Firebase Hosting for the web app.
+| Role | Email | Password |
+|------|-------|----------|
+| Dispatcher | `katusiime66+dispatcher@gmail.com` | `Erams2026!` |
+| Driver | `katusiime66+driver@gmail.com` | `Erams2026!` |
+| Hospital Staff | `katusiime66+hospital@gmail.com` | `Erams2026!` |
+| Administrator | `katusiime66+admin@gmail.com` | `Erams2026!` |
+
+---
+
+## What ERAMS Does
+
+ERAMS digitises emergency ambulance dispatch across two Kampala hospitals — **Mulago National Referral Hospital** and **Healthstone Hospital, Banda**. It replaces manual telephone dispatch and paper logbooks with:
+
+- **Automated nearest-ambulance dispatch** — PostGIS `ST_Distance` picks the closest available unit; dispatcher can override manually
+- **Live GPS tracking** — driver location uploads every 15 s; appears in real time on the dispatcher's map
+- **Role-based access control** — four roles (Dispatcher, Driver, Hospital Staff, Administrator) each see only their own module
+- **Advance hospital notifications** — hospital staff see the incoming patient, ambulance status, and live ETA before arrival
+- **Incident history & analytics** — completed/cancelled incidents searchable by role; admin dashboard shows counts by status/hospital and average response time
+- **Offline resilience** — failed GPS pushes queue and retry automatically on the next 15 s tick
 
 ---
 
 ## Architecture
 
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Flutter Client                        │
+│  ┌──────────────┐  ┌──────────┐  ┌──────────┐  ┌────────┐  │
+│  │  Dispatcher  │  │  Driver  │  │ Hospital │  │ Admin  │  │
+│  │  (web)       │  │(Android) │  │  (web)   │  │ (web)  │  │
+│  └──────┬───────┘  └────┬─────┘  └────┬─────┘  └───┬────┘  │
+│         │   go_router + Riverpod       │             │       │
+└─────────┼──────────────┼──────────────┼─────────────┼───────┘
+          │              │              │             │
+          ▼              ▼              ▼             ▼
+┌─────────────────────────────────────────────────────────────┐
+│                         Supabase                             │
+│                                                              │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────┐  │
+│  │  Postgres   │  │   Realtime   │  │  Auth (email/pw)   │  │
+│  │  + PostGIS  │  │  (websocket) │  │  + RLS policies    │  │
+│  └──────┬──────┘  └──────┬───────┘  └────────────────────┘  │
+│         │                │                                   │
+│  ┌──────▼──────────────────────────────────────────────┐    │
+│  │  Tables: profiles · hospitals · ambulances ·        │    │
+│  │          incidents · incident_events                 │    │
+│  │  RPCs:   dispatch_incident · update_incident_status  │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+          │
+          ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Firebase Hosting (web only)                     │
+│         Static Flutter web build → `build/web`              │
+└─────────────────────────────────────────────────────────────┘
+```
+
 | Layer | Technology |
 |-------|-----------|
-| Client | Flutter (web + Android) |
-| Backend-as-a-Service | Supabase (Postgres + PostGIS, Auth, Realtime, Edge Functions) |
-| Web Hosting | Firebase Hosting (static Flutter web build) |
-| State Management | Riverpod |
-| Maps | `flutter_map` + OpenStreetMap tiles |
-| Routing | `go_router` |
+| Client | Flutter 3.x (single codebase — web + Android) |
+| State management | Riverpod (`AsyncNotifier`, `FutureProvider`, `StateProvider`) |
+| Navigation | `go_router` with role-based redirect |
+| Maps | `flutter_map` + OpenStreetMap (zero cost, no API key) |
+| Backend | Supabase (Postgres + PostGIS, Auth, Realtime) |
+| Web hosting | Firebase Hosting |
 | CI/CD | GitHub Actions |
 
-See `docs/ERAMS_TECHNICAL_BUILD_PLAN.md` for the full architecture diagram, ERD, and dispatch sequence diagram.
+---
+
+## Data Model (ERD — simplified)
+
+```
+profiles ──────────────────────────────────────┐
+  id (uuid, FK → auth.users)                   │
+  full_name, phone, role, hospital_id           │
+                                                │
+hospitals ─────────────────────────────────────┤
+  id, name, address, location (geography)       │
+                                                │
+ambulances ────────────────────────────────────┤
+  id, plate_number, status, current_location    │
+  driver_id (FK → profiles), hospital_id        │
+                                                │
+incidents ─────────────────────────────────────┤
+  id, reporter_name, reporter_phone             │
+  location (geography), location_description   │
+  nature_of_emergency, patient_condition_notes  │
+  status (logged/dispatched/en_route/           │
+          arrived/completed/cancelled)          │
+  assigned_ambulance_id (FK → ambulances)       │
+  hospital_id (FK → hospitals)                  │
+  created_at, arrived_at, completed_at          │
+                                                │
+incident_events ────────────────────────────── ┘
+  id, incident_id (FK), actor_id (FK → profiles)
+  event_type, payload (jsonb), created_at
+```
 
 ---
 
@@ -47,127 +125,103 @@ See `docs/ERAMS_TECHNICAL_BUILD_PLAN.md` for the full architecture diagram, ERD,
 | Tool | Version | Install |
 |------|---------|---------|
 | Flutter SDK | 3.x stable | https://docs.flutter.dev/get-started/install |
-| Dart | bundled with Flutter | — |
-| Android Studio or VS Code | latest | IDE + Flutter extension |
+| Android Studio or VS Code | latest | + Flutter/Dart extensions |
 | Supabase CLI | latest | `npm install -g supabase` |
 | Firebase CLI | latest | `npm install -g firebase-tools` |
-| Git | 2.x | https://git-scm.com |
 
 ---
 
 ## Local Setup
 
-### 1 — Clone the repository
+### 1. Clone & install
 
 ```bash
-git clone https://github.com/forva2025/ERAMS_01.git
+git clone https://github.com/Eugikats/ERAMS_01.git
 cd ERAMS_01
-```
-
-### 2 — Install Flutter dependencies
-
-```bash
 flutter pub get
 ```
 
-### 3 — Configure environment
+### 2. Configure credentials
 
-Copy `.env.example` to `.env` (this file is git-ignored):
-
-```bash
-cp .env.example .env
-```
-
-Open `.env` and fill in your Supabase project URL and anon key:
-
-```dotenv
-SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_ANON_KEY=your-anon-key-here
-FIREBASE_PROJECT_ID=your-firebase-project-id
-```
-
-### 4 — Run on web
+Create `.env.json` from the example (git-ignored):
 
 ```bash
-flutter run -d chrome \
-  --dart-define=SUPABASE_URL=$(grep SUPABASE_URL .env | cut -d= -f2) \
-  --dart-define=SUPABASE_ANON_KEY=$(grep SUPABASE_ANON_KEY .env | cut -d= -f2)
+cp .env.example .env.json
 ```
 
-Or on Android:
+Edit `.env.json` to match this format:
+
+```json
+{
+  "SUPABASE_URL": "https://walbcsfwwgyerhfgbjdp.supabase.co",
+  "SUPABASE_ANON_KEY": "your-anon-key-here"
+}
+```
+
+> The `.vscode/launch.json` is pre-configured — press **F5** in VS Code to run on Chrome with credentials injected automatically.
+
+### 3. Run on web (Chrome)
 
 ```bash
-flutter run -d <your_device_id> \
-  --dart-define=SUPABASE_URL=... \
-  --dart-define=SUPABASE_ANON_KEY=...
+flutter run -d chrome --dart-define-from-file=.env.json
+```
+
+### 4. Run on Android
+
+```bash
+flutter devices                            # find your device ID
+flutter run -d <device_id> --dart-define-from-file=.env.json
 ```
 
 ---
 
-## Supabase Setup (first time)
+## Supabase Setup (first time only)
 
 ```bash
-# Link to your remote Supabase project
-supabase link --project-ref your-project-ref
+# Link to the remote project
+supabase link --project-ref walbcsfwwgyerhfgbjdp
 
-# Apply migrations
+# Apply all migrations (schema, RLS, dispatch RPCs)
 supabase db push
 
-# Seed demo data
-supabase db reset --db-url <your-db-url>   # applies migrations + seed.sql
+# Seed demo hospitals, ambulances, and user profiles
+# (Run seed.sql via Supabase Dashboard → SQL Editor)
 ```
 
-Enable the **PostGIS** extension in the Supabase dashboard under Database → Extensions before running migrations.
+Enable the **PostGIS** extension in the Supabase dashboard:  
+**Database → Extensions → postgis → Enable**
+
+Demo accounts must be created manually in **Authentication → Users → Add User** using the emails in the table above, then `seed.sql` sets correct roles.
 
 ---
 
-## Firebase Hosting Setup (first time)
+## Deployment
 
-```bash
-firebase login
-firebase init hosting   # point public dir to build/web; configure as SPA
+### Web — Firebase Hosting (CI/CD)
+
+Pushing to `main` triggers the GitHub Actions workflow automatically:
+
+```
+.github/workflows/firebase-hosting-merge.yml
 ```
 
-### Deploy web build
+It runs `flutter analyze` → `flutter test` → `flutter build web --release` → `firebase deploy`.
+
+**Required GitHub repository secrets:**
+
+| Secret | Where to find it |
+|--------|-----------------|
+| `SUPABASE_URL` | Supabase project → Settings → API |
+| `SUPABASE_ANON_KEY` | Supabase project → Settings → API |
+| `FIREBASE_SERVICE_ACCOUNT_ERAMS_98EB2` | Firebase → Project Settings → Service Accounts |
+
+### Android APK (manual)
 
 ```bash
-flutter build web --release \
-  --dart-define=SUPABASE_URL=... \
-  --dart-define=SUPABASE_ANON_KEY=...
-firebase deploy --only hosting
+flutter build apk --release --dart-define-from-file=.env.json
+# Output: build/app/outputs/flutter-apk/app-release.apk
+# Transfer to device: adb install build/app/outputs/flutter-apk/app-release.apk
 ```
-
----
-
-## Running Tests
-
-```bash
-# Unit and widget tests
-flutter test
-
-# With coverage
-flutter test --coverage
-genhtml coverage/lcov.info -o coverage/html
-```
-
----
-
-## Build Phases
-
-| Phase | Target | Description |
-|-------|--------|-------------|
-| 0 | 17–18 Jun | Environment & repo setup |
-| 1 | 18–20 Jun | Data model, Auth, RLS |
-| 2 | 20–22 Jun | Dispatcher module |
-| 3 | 22–24 Jun | Automated dispatch RPC |
-| 4 | 24–25 Jun | Driver mobile module |
-| 5 | 25–26 Jun | Hospital module |
-| 6 | 26–27 Jun | Admin module |
-| 7 | 27–29 Jun | Polish & deployment |
-| 8 | 29–30 Jun | Validation & demo prep |
-
-Progress tracked in [`docs/COMPLETED_WORK.md`](docs/COMPLETED_WORK.md).  
-Full phase specifications in [`docs/ERAMS_TECHNICAL_BUILD_PLAN.md`](docs/ERAMS_TECHNICAL_BUILD_PLAN.md).
 
 ---
 
@@ -175,27 +229,86 @@ Full phase specifications in [`docs/ERAMS_TECHNICAL_BUILD_PLAN.md`](docs/ERAMS_T
 
 ```
 ERAMS_01/
-├── docs/                          ← build plan, progress tracker
-├── .github/workflows/             ← CI/CD (GitHub Actions)
+├── docs/
+│   ├── ERAMS_TECHNICAL_BUILD_PLAN.md   ← full architecture & phase specs
+│   ├── COMPLETED_WORK.md               ← progress tracker
+│   └── EVALUATION_FORM.md              ← structured user evaluation form
+├── .github/workflows/                   ← CI/CD (Firebase + Supabase deploy)
 ├── lib/
-│   ├── main.dart
-│   ├── app.dart                   ← root widget, routing, theme
-│   ├── core/                      ← config, theme, utils
-│   ├── models/                    ← Dart data classes
-│   ├── services/                  ← Supabase & Realtime wrappers
-│   ├── state/                     ← Riverpod providers
-│   ├── features/                  ← auth, dispatcher, driver, hospital, admin
-│   └── widgets/                   ← shared UI components
+│   ├── main.dart                        ← app entry point, Supabase init
+│   ├── app.dart                         ← root widget, theme, go_router
+│   ├── core/
+│   │   ├── config/                      ← Supabase credentials (--dart-define)
+│   │   ├── theme/                       ← AppColors, AppTheme
+│   │   └── utils/                       ← geo_utils (EWKB → lat/lng)
+│   ├── models/                          ← Profile, Hospital, Ambulance, Incident
+│   ├── services/                        ← Supabase client wrappers (one per domain)
+│   ├── state/                           ← Riverpod providers & notifiers
+│   ├── features/
+│   │   ├── auth/                        ← login screen, role-based redirect
+│   │   ├── dispatcher/                  ← dashboard, live map, incident form, dispatch
+│   │   ├── driver/                      ← GPS tracking, alerts, status transitions
+│   │   ├── hospital/                    ← incoming patients, ETA, acknowledge
+│   │   └── admin/                       ← fleet management, user roles, analytics
+│   └── widgets/                         ← StatusBadge, AppLogo, ProfileEditSheet,
+│                                           IncidentHistoryList
 ├── supabase/
-│   ├── migrations/                ← SQL schema + RLS policies
-│   ├── functions/                 ← Edge Functions (Deno/TypeScript)
-│   └── seed.sql
-├── web/                           ← Flutter web platform files
-├── test/
+│   ├── migrations/                      ← 001 schema · 002 auth trigger · 003 RLS · 004 RPCs
+│   ├── functions/                       ← Edge Function stubs (Deno/TypeScript)
+│   └── seed.sql                         ← demo hospitals, ambulances, users
+├── web/                                 ← Flutter web platform files
 ├── pubspec.yaml
-├── firebase.json
-└── .firebaserc
+├── firebase.json / .firebaserc
+└── .env.example
 ```
+
+---
+
+## Key Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| `flutter_map` + OpenStreetMap instead of Google Maps | Zero cost, no API key required — important for a student project with limited budget |
+| Supabase Realtime re-fetch pattern (not raw payload) | PostGIS geography columns arrive as hex WKB in Realtime payloads, which require custom parsing; re-fetching via REST returns clean GeoJSON |
+| `SECURITY DEFINER` Postgres RPCs for dispatch | Ensures atomic dispatch (ambulance + incident updated in one transaction) with server-side role validation, not client-side |
+| Straight-line Haversine ETA (÷ 40 km/h) | Routing APIs (OSRM, Google Directions) add cost and complexity; straight-line is sufficient for MVP demonstration |
+| GPS queue-and-retry on driver | Addresses the connectivity reliability concern raised in both Mulago and Healthstone stakeholder interviews |
+
+---
+
+## Known Limitations (MVP)
+
+- **ETA** is a straight-line distance estimate divided by an average speed of 40 km/h — not a routing API result. Accuracy degrades for routes with significant road detours.
+- **DHIS2 export** is not implemented. The data model is structured (all incidents have timestamps and structured fields) so a CSV/DHIS2 export could be added post-MVP.
+- **Desktop native build** (Windows/macOS) is not a target. The "desktop" experience is the responsive web app viewed in a browser.
+- **Push notifications** (FCM) are not implemented. Drivers receive alerts only while the app is open. A future version could add background push via Firebase Cloud Messaging.
+- **Multi-dispatch** (one incident, multiple ambulances) is not supported. Each incident has a single `assigned_ambulance_id`.
+
+---
+
+## Running Tests
+
+```bash
+flutter test
+```
+
+---
+
+## Build Phases Summary
+
+| Phase | Dates | Deliverable |
+|-------|-------|-------------|
+| 0 | 17–18 Jun | Flutter project init, Supabase + Firebase setup, CI stubs |
+| 1 | 18–20 Jun | DB schema, Auth, RLS, seed data, login + role routing |
+| 2 | 20–22 Jun | Dispatcher dashboard, incident form, live map, Realtime |
+| 3 | 22–24 Jun | Auto-dispatch RPC (PostGIS nearest), manual override |
+| 4 | 24–25 Jun | Driver module — GPS tracking, alerts, status transitions |
+| 5 | 25–26 Jun | Hospital module — incoming patients, live ETA, acknowledge |
+| 6 | 26–27 Jun | Admin module — fleet management, user roles, analytics |
+| 7 | 27–29 Jun | Profile sheet, history tabs (all roles), GPS web guard |
+| 8 | 29–30 Jun | Evaluation form, final docs, `v1.0-demo` tag |
+
+Full phase specifications and progress: [`docs/COMPLETED_WORK.md`](docs/COMPLETED_WORK.md)
 
 ---
 
@@ -209,14 +322,6 @@ ERAMS_01/
 | Ashaka Joseph | Team member |
 
 **Supervisor:** Ms. Shallon Ahimbisibwe, Department of Computer Science, Kyambogo University
-
----
-
-## Known Limitations (MVP)
-
-- ETA calculation uses a straight-line distance estimate, not a routing API
-- DHIS2 export is not implemented (deferred post-MVP)
-- Desktop native build (Windows/macOS) is a stretch target — primary "desktop" experience is the responsive web app
 
 ---
 
