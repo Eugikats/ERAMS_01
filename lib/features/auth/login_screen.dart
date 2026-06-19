@@ -204,7 +204,14 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text,
       );
       if (!mounted) return;
-      context.go(profile.role.routePath);
+      final mustChangePassword = Supabase.instance.client.auth.currentUser
+              ?.userMetadata?['must_change_password'] ==
+          true;
+      if (mustChangePassword) {
+        context.go('/force-password-change', extra: profile.role.routePath);
+      } else {
+        context.go(profile.role.routePath);
+      }
     } on AuthException catch (e) {
       setState(() => _errorMessage = _friendlyError(e.message));
     } catch (_) {

@@ -29,6 +29,13 @@ abstract final class AppTheme {
       ),
     ),
 
+    tabBarTheme: const TabBarThemeData(
+      labelColor: Colors.white,
+      unselectedLabelColor: Colors.white70,
+      indicatorColor: Colors.white,
+      dividerColor: Colors.transparent,
+    ),
+
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: Colors.white,

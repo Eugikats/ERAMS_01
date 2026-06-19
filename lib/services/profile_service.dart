@@ -35,7 +35,7 @@ class ProfileService {
       await supabaseClient
           .from('incidents')
           .select('*, hospitals(name)')
-          .eq('hospital_id', hospitalId)
+          .eq('assigned_hospital_id', hospitalId)
           .inFilter('status', ['completed', 'cancelled'])
           .gte('created_at', since)
           .order('created_at', ascending: false),

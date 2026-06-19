@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -88,6 +89,9 @@ class _FleetTab extends ConsumerWidget {
                   ref,
                   hospitals: hospitals,
                   drivers: drivers,
+                ),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 40),
                 ),
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Add Ambulance'),
@@ -373,6 +377,7 @@ class _AmbulanceFormDialogState extends State<_AmbulanceFormDialog> {
         ),
         FilledButton(
           onPressed: _saving ? null : _save,
+          style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
           child: _saving
               ? const SizedBox(
                   width: 16,
@@ -408,6 +413,14 @@ class _UsersTab extends ConsumerWidget {
           children: [
             _SectionHeader(
               title: '${profiles.length} User${profiles.length == 1 ? '' : 's'}',
+              action: FilledButton.icon(
+                onPressed: () => _showUserForm(context, ref, hospitals: hospitals),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 40),
+                ),
+                icon: const Icon(Icons.person_add_alt_1, size: 18),
+                label: const Text('Add User'),
+              ),
             ),
             Expanded(
               child: ListView.separated(
@@ -427,6 +440,9 @@ class _UsersTab extends ConsumerWidget {
                         .read(profilesNotifierProvider.notifier)
                         .updateHospital(profiles[i].id, hid);
                   },
+                  onEdit: () => _showEditDetailsForm(context, ref, profiles[i]),
+                  onResetPassword: () =>
+                      _confirmAndResetPassword(context, ref, profiles[i]),
                 ),
               ),
             ),
@@ -435,6 +451,139 @@ class _UsersTab extends ConsumerWidget {
       },
     );
   }
+
+  void _showUserForm(
+    BuildContext context,
+    WidgetRef ref, {
+    required List<Hospital> hospitals,
+  }) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _UserCreateDialog(
+        hospitals: hospitals,
+        onCreate: (email, fullName, role, hospitalId, phone) {
+          return ref.read(profilesNotifierProvider.notifier).createUser(
+                email: email,
+                fullName: fullName,
+                role: role,
+                hospitalId: hospitalId,
+                phone: phone,
+              );
+        },
+      ),
+    );
+  }
+
+  void _showEditDetailsForm(
+      BuildContext context, WidgetRef ref, Profile profile) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _UserEditDetailsDialog(
+        profile: profile,
+        onSave: (fullName, phone) => ref
+            .read(profilesNotifierProvider.notifier)
+            .updateDetails(profile.id, fullName: fullName, phone: phone),
+      ),
+    );
+  }
+
+  Future<void> _confirmAndResetPassword(
+      BuildContext context, WidgetRef ref, Profile profile) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Reset Password?'),
+        content: Text(
+          'This will generate a new temporary password for '
+          '${profile.fullName.isEmpty ? profile.email : profile.fullName}. '
+          'Their current password will stop working immediately.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
+            child: const Text('Reset Password'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      final tempPassword = await ref
+          .read(profilesNotifierProvider.notifier)
+          .resetPassword(profile.id);
+      if (context.mounted) {
+        _showTempPasswordDialog(context, tempPassword);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+}
+
+void _showTempPasswordDialog(BuildContext context, String tempPassword) {
+  showDialog<void>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('Temporary Password'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Share this password with the user. They will be required to '
+            'set their own password the next time they sign in.',
+          ),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.divider),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SelectableText(
+                    tempPassword,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Copy',
+                  icon: const Icon(Icons.copy, size: 18),
+                  onPressed: () => Clipboard.setData(
+                      ClipboardData(text: tempPassword)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(),
+          style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
+          child: const Text('Done'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _UserCard extends StatefulWidget {
@@ -442,12 +591,16 @@ class _UserCard extends StatefulWidget {
   final List<Hospital> hospitals;
   final Future<void> Function(String role) onChangeRole;
   final Future<void> Function(String? hospitalId) onChangeHospital;
+  final VoidCallback onEdit;
+  final VoidCallback onResetPassword;
 
   const _UserCard({
     required this.profile,
     required this.hospitals,
     required this.onChangeRole,
     required this.onChangeHospital,
+    required this.onEdit,
+    required this.onResetPassword,
   });
 
   @override
@@ -531,9 +684,12 @@ class _UserCardState extends State<_UserCard> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    widget.profile.phone,
+                    widget.profile.email.isNotEmpty
+                        ? widget.profile.email
+                        : widget.profile.phone,
                     style: const TextStyle(
                         fontSize: 12, color: AppColors.textSecondary),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -573,9 +729,307 @@ class _UserCardState extends State<_UserCard> {
                       ),
                     ),
                   ),
+            PopupMenuButton<String>(
+              tooltip: 'More actions',
+              icon: const Icon(Icons.more_vert, size: 20),
+              onSelected: (value) {
+                if (value == 'edit') {
+                  widget.onEdit();
+                } else if (value == 'reset') {
+                  widget.onResetPassword();
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'edit',
+                  child: ListTile(
+                    leading: Icon(Icons.edit_outlined),
+                    title: Text('Edit Details'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'reset',
+                  child: ListTile(
+                    leading: Icon(Icons.key_outlined),
+                    title: Text('Reset Password'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Create user dialog ───────────────────────────────────────────────────────
+
+class _UserCreateDialog extends StatefulWidget {
+  final List<Hospital> hospitals;
+  final Future<String> Function(
+    String email,
+    String fullName,
+    String role,
+    String? hospitalId,
+    String phone,
+  ) onCreate;
+
+  const _UserCreateDialog({required this.hospitals, required this.onCreate});
+
+  @override
+  State<_UserCreateDialog> createState() => _UserCreateDialogState();
+}
+
+class _UserCreateDialogState extends State<_UserCreateDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  String _role = 'dispatcher';
+  String? _hospitalId;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _nameCtrl.dispose();
+    _phoneCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _create() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final tempPassword = await widget.onCreate(
+        _emailCtrl.text.trim(),
+        _nameCtrl.text.trim(),
+        _role,
+        _role == 'hospital' ? _hospitalId : null,
+        _phoneCtrl.text.trim(),
+      );
+      if (mounted) {
+        Navigator.of(context).pop();
+        _showTempPasswordDialog(context, tempPassword);
+      }
+    } catch (e) {
+      setState(() {
+        _saving = false;
+        _error = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add User'),
+      content: SizedBox(
+        width: 360,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _emailCtrl,
+                decoration: const InputDecoration(labelText: 'Email *'),
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'Required';
+                  if (!v.contains('@')) return 'Enter a valid email';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _nameCtrl,
+                decoration: const InputDecoration(labelText: 'Full Name *'),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _phoneCtrl,
+                decoration: const InputDecoration(labelText: 'Phone'),
+                keyboardType: TextInputType.phone,
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: _role,
+                decoration: const InputDecoration(labelText: 'Role *'),
+                items: ['dispatcher', 'driver', 'hospital', 'admin']
+                    .map((r) => DropdownMenuItem(
+                          value: r,
+                          child: Text(UserRole.fromString(r).label),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _role = v ?? _role),
+              ),
+              if (_role == 'hospital') ...[
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _hospitalId,
+                  decoration: const InputDecoration(labelText: 'Hospital'),
+                  items: [
+                    const DropdownMenuItem(
+                        value: null, child: Text('— None —')),
+                    ...widget.hospitals.map((h) => DropdownMenuItem(
+                          value: h.id,
+                          child: Text(h.name),
+                        )),
+                  ],
+                  onChanged: (v) => setState(() => _hospitalId = v),
+                ),
+              ],
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(_error!,
+                    style: const TextStyle(
+                        color: AppColors.error, fontSize: 12)),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _create,
+          style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
+          child: _saving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white),
+                )
+              : const Text('Create'),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Edit user details dialog ─────────────────────────────────────────────────
+
+class _UserEditDetailsDialog extends StatefulWidget {
+  final Profile profile;
+  final Future<void> Function(String fullName, String phone) onSave;
+
+  const _UserEditDetailsDialog({required this.profile, required this.onSave});
+
+  @override
+  State<_UserEditDetailsDialog> createState() =>
+      _UserEditDetailsDialogState();
+}
+
+class _UserEditDetailsDialogState extends State<_UserEditDetailsDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _phoneCtrl;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.profile.fullName);
+    _phoneCtrl = TextEditingController(text: widget.profile.phone);
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _phoneCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.onSave(_nameCtrl.text.trim(), _phoneCtrl.text.trim());
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      setState(() {
+        _saving = false;
+        _error = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit User'),
+      content: SizedBox(
+        width: 360,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.profile.email.isNotEmpty) ...[
+                Text(widget.profile.email,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 13)),
+                const SizedBox(height: 16),
+              ],
+              TextFormField(
+                controller: _nameCtrl,
+                decoration: const InputDecoration(labelText: 'Full Name *'),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _phoneCtrl,
+                decoration: const InputDecoration(labelText: 'Phone'),
+                keyboardType: TextInputType.phone,
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(_error!,
+                    style: const TextStyle(
+                        color: AppColors.error, fontSize: 12)),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
+          child: _saving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white),
+                )
+              : const Text('Save'),
+        ),
+      ],
     );
   }
 }

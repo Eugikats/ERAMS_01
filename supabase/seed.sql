@@ -102,3 +102,17 @@ UPDATE public.profiles SET role = 'admin' WHERE id = '68a07cee-8108-4f63-9866-71
 -- The driver account email is katusiime66+driver@gmail.com — link
 -- that user to ambulance UBE 001A so dispatch tests work immediately.
 -- ============================================================
+
+
+-- ============================================================
+-- DEMO DISPLAY NAMES
+-- The 4 demo accounts were created manually in the Auth dashboard
+-- with no full_name in user metadata, so the auth trigger inserted
+-- an empty string. Set readable display names for the admin Users
+-- screen and avatar initials.
+-- ============================================================
+UPDATE public.profiles SET full_name = 'Patricia Nabukenya' WHERE id = '92e8eedb-a17a-4f91-a6df-53a02ae4774d';   -- dispatcher
+UPDATE public.profiles SET full_name = 'Moses Kiggundu'     WHERE id = '624afe4b-f573-4301-8aa1-22c4cd3b791c';   -- driver
+UPDATE public.profiles SET full_name = 'Grace Achieng'      WHERE id = '556728b1-f3a7-441c-b095-952f2d8a94a7';   -- hospital
+UPDATE public.profiles SET full_name = 'Eugene Katusiime'   WHERE id = '68a07cee-8108-4f63-9866-71c292c3ca48';   -- admin
+-- ============================================================

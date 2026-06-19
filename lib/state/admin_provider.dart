@@ -74,6 +74,38 @@ class ProfilesNotifier extends AsyncNotifier<List<Profile>> {
     await AdminService().updateProfileHospital(userId, hospitalId);
     await refresh();
   }
+
+  Future<void> updateDetails(
+    String userId, {
+    required String fullName,
+    required String phone,
+  }) async {
+    await AdminService()
+        .updateProfileDetails(userId, fullName: fullName, phone: phone);
+    await refresh();
+  }
+
+  Future<String> createUser({
+    required String email,
+    required String fullName,
+    required String role,
+    String? hospitalId,
+    String phone = '',
+  }) async {
+    final tempPassword = await AdminService().createUser(
+      email: email,
+      fullName: fullName,
+      role: role,
+      hospitalId: hospitalId,
+      phone: phone,
+    );
+    await refresh();
+    return tempPassword;
+  }
+
+  Future<String> resetPassword(String userId) {
+    return AdminService().resetUserPassword(userId);
+  }
 }
 
 final profilesNotifierProvider =

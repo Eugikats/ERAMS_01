@@ -156,6 +156,12 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 - [x] `AdminService`: `fetchAllAmbulances`, `createAmbulance`, `updateAmbulance`, `fetchAllProfiles`, `updateProfileRole`, `updateProfileHospital`, `fetchAllHospitals`, `fetchAnalytics` → `AdminAnalytics`
 - [x] `admin_provider.dart`: `FleetNotifier`, `ProfilesNotifier`, `adminHospitalsProvider`, `analyticsProvider`
 - [x] Wire `/admin` route to `AdminScreen` (replaces placeholder); removed unused `_RolePlaceholderScreen`
+- [x] **Users tab — Create User**: "Add User" dialog (email, full name, phone, role, hospital if role=hospital); calls new `admin_create_user` Edge Function which uses the service-role key to create the `auth.users` row (never exposed to the Flutter client) and returns an auto-generated temporary password shown once in a copyable dialog
+- [x] **Users tab — Edit Details**: overflow menu (⋮) on each user card → "Edit Details" dialog for full name + phone (role/hospital still changed via the existing role chip)
+- [x] **Users tab — Reset Password**: overflow menu → "Reset Password" with confirmation, calls new `admin_reset_password` Edge Function, shows the new temporary password once
+- [x] **Forced password change flow**: accounts created or reset get `must_change_password: true` in Supabase Auth user metadata; `ForcePasswordChangeScreen` (`/force-password-change`) intercepts login (and app reloads, via a `go_router` redirect guard in `app.dart`) until the user sets their own password, then clears the flag and continues to their role dashboard
+- [x] Migration `20260620000005_profiles_email.sql` — adds `profiles.email` (backfilled from `auth.users`, kept in sync by the auth trigger going forward) so the admin Users screen can show/identify accounts without needing Admin API access from the client
+- [x] New Edge Functions `supabase/functions/admin_create_user` and `supabase/functions/admin_reset_password` (Deno/TS), both gated by a shared `_shared/adminAuth.ts` check that the caller's `profiles.role = 'admin'`
 
 ### Needs Team Testing
 - Log in as driver demo account, get dispatched to an incident, and confirm the "Navigate to Scene" button appears on the active incident card.
@@ -165,6 +171,11 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 - Tap the edit icon on an existing ambulance, change the assigned driver, save — confirm the change persists after refreshing.
 - Open Users tab — confirm all demo accounts are listed. Tap a role badge and change a user's role — confirm it updates in the Supabase `profiles` table.
 - Open Analytics tab — confirm total incident count matches the seeded data. Run a full dispatch flow end-to-end and confirm response time appears in the Avg Response KPI card.
+- **Before testing Create User / Reset Password**: run `supabase db push` (migration 005) and `supabase functions deploy admin_create_user` + `supabase functions deploy admin_reset_password`.
+- Tap "Add User", fill in a new account, submit — confirm a temporary password dialog appears and the user shows up in the list immediately.
+- Sign in as that new user with the temp password — confirm you land on "Set a New Password" before reaching their dashboard; set a password and confirm you land on the correct role dashboard afterward.
+- On an existing user, open the ⋮ menu → "Edit Details" — change name/phone, save, confirm it persists after refresh.
+- On an existing user, open the ⋮ menu → "Reset Password", confirm, then sign in as that user with the new temp password — confirm the forced password-change screen appears again.
 
 ---
 

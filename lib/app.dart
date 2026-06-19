@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/theme/app_theme.dart';
 import 'features/admin/admin_screen.dart';
+import 'features/auth/force_password_change_screen.dart';
 import 'features/auth/login_screen.dart';
 import 'features/dispatcher/dispatcher_dashboard.dart';
 import 'features/driver/driver_screen.dart';
@@ -34,12 +35,25 @@ final _router = GoRouter(
     final session = supabaseClient.auth.currentSession;
     final onLogin = state.matchedLocation == '/login';
     if (session == null && !onLogin) return '/login';
+
+    final onForceChange = state.matchedLocation == '/force-password-change';
+    final mustChangePassword = session != null &&
+        supabaseClient.auth.currentUser?.userMetadata?['must_change_password'] ==
+            true;
+    if (mustChangePassword && !onForceChange) return '/force-password-change';
+
     return null;
   },
   routes: [
     GoRoute(
       path: '/login',
       builder: (_, __) => const LoginScreen(),
+    ),
+    GoRoute(
+      path: '/force-password-change',
+      builder: (_, state) => ForcePasswordChangeScreen(
+        redirectPath: state.extra as String?,
+      ),
     ),
     GoRoute(
       path: '/dispatcher',

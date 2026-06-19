@@ -1,3 +1,5 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/ambulance.dart';
 import '../models/hospital.dart';
 import '../models/profile.dart';
@@ -74,6 +76,68 @@ class AdminService {
         .eq('id', userId);
   }
 
+  Future<void> updateProfileDetails(
+    String userId, {
+    required String fullName,
+    required String phone,
+  }) async {
+    await supabaseClient.from('profiles').update({
+      'full_name': fullName,
+      'phone': phone,
+    }).eq('id', userId);
+  }
+
+  /// Creates a new auth user + profile via the `admin_create_user` Edge
+  /// Function (requires the service-role key, which never touches the
+  /// client). Returns the auto-generated temporary password to show the
+  /// admin once — the new user must set their own password on first login.
+  Future<String> createUser({
+    required String email,
+    required String fullName,
+    required String role,
+    String? hospitalId,
+    String phone = '',
+  }) async {
+    try {
+      final res = await supabaseClient.functions.invoke(
+        'admin_create_user',
+        body: {
+          'email': email,
+          'fullName': fullName,
+          'role': role,
+          'hospitalId': hospitalId,
+          'phone': phone,
+        },
+      );
+      return res.data['tempPassword'] as String;
+    } on FunctionException catch (e) {
+      throw Exception(_extractError(e));
+    }
+  }
+
+  /// Resets a user's password via the `admin_reset_password` Edge Function.
+  /// Returns the new temporary password; the user must set their own on
+  /// next login.
+  Future<String> resetUserPassword(String userId) async {
+    try {
+      final res = await supabaseClient.functions.invoke(
+        'admin_reset_password',
+        body: {'userId': userId},
+      );
+      return res.data['tempPassword'] as String;
+    } on FunctionException catch (e) {
+      throw Exception(_extractError(e));
+    }
+  }
+
+  String _extractError(FunctionException e) {
+    final details = e.details;
+    if (details is Map && details['error'] is String) {
+      return details['error'] as String;
+    }
+    return e.reasonPhrase ?? 'Request failed';
+  }
+
   // ── Hospitals ────────────────────────────────────────────────
 
   Future<List<Hospital>> fetchAllHospitals() async {
@@ -119,7 +183,7 @@ class AdminService {
     // Incidents by hospital
     final hospData = await supabaseClient
         .from('incidents')
-        .select('hospital_id, hospitals(name)');
+        .select('assigned_hospital_id, hospitals(name)');
 
     final byHospital = <String, int>{};
     for (final row in hospData as List) {

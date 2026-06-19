@@ -73,3 +73,7 @@ coverage/
 
 # Test outputs
 test-results/
+
+# Node (debug/repro tooling — not part of the Flutter app)
+node_modules/
+package-lock.json

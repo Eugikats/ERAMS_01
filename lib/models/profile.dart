@@ -33,6 +33,7 @@ class Profile {
   final UserRole role;
   final String? hospitalId;
   final String phone;
+  final String email;
   final DateTime createdAt;
 
   const Profile({
@@ -41,6 +42,7 @@ class Profile {
     required this.role,
     this.hospitalId,
     required this.phone,
+    required this.email,
     required this.createdAt,
   });
 
@@ -50,6 +52,7 @@ class Profile {
     role: UserRole.fromString(json['role'] as String? ?? 'driver'),
     hospitalId: json['hospital_id'] as String?,
     phone: json['phone'] as String? ?? '',
+    email: json['email'] as String? ?? '',
     createdAt: DateTime.parse(json['created_at'] as String),
   );
 
@@ -59,6 +62,7 @@ class Profile {
     'role': role.name,
     'hospital_id': hospitalId,
     'phone': phone,
+    'email': email,
     'created_at': createdAt.toIso8601String(),
   };
 }
