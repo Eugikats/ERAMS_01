@@ -50,6 +50,21 @@ class AdminService {
     }).eq('id', id);
   }
 
+  /// Throws if [id] has any incidents still pointing at it, so deleting an
+  /// ambulance never silently orphans incident history.
+  Future<void> deleteAmbulance(String id) async {
+    final incidents = await supabaseClient
+        .from('incidents')
+        .select('id')
+        .eq('assigned_ambulance_id', id);
+    if ((incidents as List).isNotEmpty) {
+      throw Exception(
+          'Cannot delete — ${incidents.length} incident(s) still reference '
+          'this ambulance. Reassign or complete them first.');
+    }
+    await supabaseClient.from('ambulances').delete().eq('id', id);
+  }
+
   // ── Profiles (users) ─────────────────────────────────────────
 
   Future<List<Profile>> fetchAllProfiles() async {
@@ -148,6 +163,74 @@ class AdminService {
     return (data as List)
         .map((e) => Hospital.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  Future<void> createHospital({
+    required String name,
+    required String address,
+    required String contactPhone,
+    double? latitude,
+    double? longitude,
+  }) async {
+    await supabaseClient.from('hospitals').insert({
+      'name': name,
+      'address': address,
+      'contact_phone': contactPhone,
+      if (latitude != null && longitude != null)
+        'location': 'SRID=4326;POINT($longitude $latitude)',
+    });
+  }
+
+  Future<void> updateHospital(
+    String id, {
+    required String name,
+    required String address,
+    required String contactPhone,
+    double? latitude,
+    double? longitude,
+  }) async {
+    await supabaseClient.from('hospitals').update({
+      'name': name,
+      'address': address,
+      'contact_phone': contactPhone,
+      if (latitude != null && longitude != null)
+        'location': 'SRID=4326;POINT($longitude $latitude)',
+    }).eq('id', id);
+  }
+
+  /// Throws if [id] still has ambulances, staff, or incidents pointing at
+  /// it, so deleting a hospital never silently orphans history.
+  Future<void> deleteHospital(String id) async {
+    final ambulances = await supabaseClient
+        .from('ambulances')
+        .select('id')
+        .eq('hospital_id', id);
+    final staff = await supabaseClient
+        .from('profiles')
+        .select('id')
+        .eq('hospital_id', id);
+    final incidents = await supabaseClient
+        .from('incidents')
+        .select('id')
+        .eq('assigned_hospital_id', id);
+
+    final blockers = <String>[];
+    if ((ambulances as List).isNotEmpty) {
+      blockers.add('${ambulances.length} ambulance(s)');
+    }
+    if ((staff as List).isNotEmpty) {
+      blockers.add('${staff.length} staff member(s)');
+    }
+    if ((incidents as List).isNotEmpty) {
+      blockers.add('${incidents.length} incident(s)');
+    }
+    if (blockers.isNotEmpty) {
+      throw Exception(
+          'Cannot delete — ${blockers.join(', ')} still reference this '
+          'hospital. Reassign them first.');
+    }
+
+    await supabaseClient.from('hospitals').delete().eq('id', id);
   }
 
   // ── Analytics ────────────────────────────────────────────────

@@ -162,6 +162,10 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 - [x] **Forced password change flow**: accounts created or reset get `must_change_password: true` in Supabase Auth user metadata; `ForcePasswordChangeScreen` (`/force-password-change`) intercepts login (and app reloads, via a `go_router` redirect guard in `app.dart`) until the user sets their own password, then clears the flag and continues to their role dashboard
 - [x] Migration `20260620000005_profiles_email.sql` — adds `profiles.email` (backfilled from `auth.users`, kept in sync by the auth trigger going forward) so the admin Users screen can show/identify accounts without needing Admin API access from the client
 - [x] New Edge Functions `supabase/functions/admin_create_user` and `supabase/functions/admin_reset_password` (Deno/TS), both gated by a shared `_shared/adminAuth.ts` check that the caller's `profiles.role = 'admin'`
+- [x] **Hospitals tab** (new 4th admin tab): full CRUD — "Add Hospital" / per-row edit dialog (name, address, contact phone, map-pin location reusing the dispatcher's `pickLocation` picker); delete with a dependency guard that blocks (with a clear message) if any ambulances, staff, or incidents still reference that hospital, instead of silently orphaning history
+- [x] **Fleet tab — Delete Ambulance**: delete icon + confirmation on each ambulance card, guarded the same way — blocked if any incident still references that ambulance
+- [x] `AdminService` / `admin_provider.dart`: added `createHospital`, `updateHospital`, `deleteHospital`, `deleteAmbulance`; converted `adminHospitalsProvider` from a plain `FutureProvider` to a `HospitalsNotifier` (`AsyncNotifierProvider`) so the Fleet tab's and Add User dialog's hospital dropdowns refresh automatically after any hospital CRUD action
+- [x] Deliberately **not** built this round (per security/audit-trail review): no hard-delete for Users (deactivation needs an Auth-layer ban via Edge Function, deferred), and no edit/delete for Incidents or Incident Events (both are audit-trail records)
 
 ### Needs Team Testing
 - Log in as driver demo account, get dispatched to an incident, and confirm the "Navigate to Scene" button appears on the active incident card.
@@ -171,6 +175,10 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 - Tap the edit icon on an existing ambulance, change the assigned driver, save — confirm the change persists after refreshing.
 - Open Users tab — confirm all demo accounts are listed. Tap a role badge and change a user's role — confirm it updates in the Supabase `profiles` table.
 - Open Analytics tab — confirm total incident count matches the seeded data. Run a full dispatch flow end-to-end and confirm response time appears in the Avg Response KPI card.
+- Open the new Hospitals tab — confirm Healthstone and Mulago are listed. Tap "Add Hospital", fill in name/address/phone, pick a location on the map, save — confirm it appears immediately, and that it now also appears in the Fleet tab's and Add User dialog's hospital dropdowns without a page refresh.
+- Edit an existing hospital's details and confirm they persist after refresh.
+- Try deleting a hospital that has ambulances or staff linked to it — confirm it's blocked with a clear error instead of silently failing or orphaning records. Then try deleting one with no dependents — confirm it's removed.
+- In the Fleet tab, try deleting an ambulance that has incident history — confirm it's blocked. Add a fresh test ambulance with no history and delete it — confirm it's removed.
 - **Before testing Create User / Reset Password**: run `supabase db push` (migration 005) and `supabase functions deploy admin_create_user` + `supabase functions deploy admin_reset_password`.
 - Tap "Add User", fill in a new account, submit — confirm a temporary password dialog appears and the user shows up in the list immediately.
 - Sign in as that new user with the temp password — confirm you land on "Set a New Password" before reaching their dashboard; set a password and confirm you land on the correct role dashboard afterward.

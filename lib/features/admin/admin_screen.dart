@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../models/ambulance.dart';
@@ -12,6 +13,7 @@ import '../../state/admin_provider.dart';
 import '../../widgets/app_logo.dart';
 import '../../widgets/profile_edit_sheet.dart';
 import '../../widgets/status_badge.dart';
+import '../dispatcher/location_picker.dart';
 
 class AdminScreen extends ConsumerWidget {
   const AdminScreen({super.key});
@@ -19,7 +21,7 @@ class AdminScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: const AppLogoHorizontal(),
@@ -39,8 +41,11 @@ class AdminScreen extends ConsumerWidget {
             ),
           ],
           bottom: const TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             tabs: [
               Tab(icon: Icon(Icons.airport_shuttle), text: 'Fleet'),
+              Tab(icon: Icon(Icons.local_hospital), text: 'Hospitals'),
               Tab(icon: Icon(Icons.people), text: 'Users'),
               Tab(icon: Icon(Icons.bar_chart), text: 'Analytics'),
             ],
@@ -49,6 +54,7 @@ class AdminScreen extends ConsumerWidget {
         body: const TabBarView(
           children: [
             _FleetTab(),
+            _HospitalsTab(),
             _UsersTab(),
             _AnalyticsTab(),
           ],
@@ -118,6 +124,8 @@ class _FleetTab extends ConsumerWidget {
                           hospitals: hospitals,
                           drivers: drivers,
                         ),
+                        onDelete: () =>
+                            _confirmDeleteAmbulance(context, ref, ambulances[i]),
                       ),
                     ),
             ),
@@ -162,6 +170,48 @@ class _FleetTab extends ConsumerWidget {
       ),
     );
   }
+
+  Future<void> _confirmDeleteAmbulance(
+      BuildContext context, WidgetRef ref, Ambulance ambulance) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Ambulance?'),
+        content: Text(
+          'This will permanently remove ${ambulance.plateNumber}. '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 40),
+              backgroundColor: AppColors.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await ref.read(fleetNotifierProvider.notifier).deleteAmbulance(ambulance.id);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
 }
 
 class _AmbulanceCard extends StatelessWidget {
@@ -169,12 +219,14 @@ class _AmbulanceCard extends StatelessWidget {
   final List<Hospital> hospitals;
   final List<Profile> drivers;
   final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   const _AmbulanceCard({
     required this.ambulance,
     required this.hospitals,
     required this.drivers,
     required this.onEdit,
+    required this.onDelete,
   });
 
   @override
@@ -235,6 +287,12 @@ class _AmbulanceCard extends StatelessWidget {
               icon: const Icon(Icons.edit_outlined, size: 20),
               tooltip: 'Edit',
               onPressed: onEdit,
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 20),
+              tooltip: 'Delete',
+              color: AppColors.error,
+              onPressed: onDelete,
             ),
           ],
         ),
@@ -359,6 +417,360 @@ class _AmbulanceFormDialogState extends State<_AmbulanceFormDialog> {
                       )),
                 ],
                 onChanged: (v) => setState(() => _hospitalId = v),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(_error!,
+                    style: const TextStyle(
+                        color: AppColors.error, fontSize: 12)),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
+          child: _saving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white),
+                )
+              : Text(isEdit ? 'Save' : 'Add'),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Hospitals Tab ─────────────────────────────────────────────────────────────
+
+class _HospitalsTab extends ConsumerWidget {
+  const _HospitalsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hospitalsAsync = ref.watch(adminHospitalsProvider);
+
+    return hospitalsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => _ErrorView(
+          message: e.toString(),
+          onRetry: () => ref.invalidate(adminHospitalsProvider)),
+      data: (hospitals) {
+        return Column(
+          children: [
+            _SectionHeader(
+              title:
+                  '${hospitals.length} Hospital${hospitals.length == 1 ? '' : 's'}',
+              action: FilledButton.icon(
+                onPressed: () => _showHospitalForm(context, ref),
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add Hospital'),
+              ),
+            ),
+            Expanded(
+              child: hospitals.isEmpty
+                  ? const _EmptyState(
+                      icon: Icons.local_hospital,
+                      message:
+                          'No hospitals yet.\nTap "Add Hospital" to register one.',
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: hospitals.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (_, i) => _HospitalCard(
+                        hospital: hospitals[i],
+                        onEdit: () => _showHospitalForm(context, ref,
+                            existing: hospitals[i]),
+                        onDelete: () =>
+                            _confirmDeleteHospital(context, ref, hospitals[i]),
+                      ),
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showHospitalForm(BuildContext context, WidgetRef ref,
+      {Hospital? existing}) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _HospitalFormDialog(
+        existing: existing,
+        onSave: (name, address, phone, lat, lng) {
+          final notifier = ref.read(adminHospitalsProvider.notifier);
+          if (existing == null) {
+            return notifier.createHospital(
+              name: name,
+              address: address,
+              contactPhone: phone,
+              latitude: lat,
+              longitude: lng,
+            );
+          }
+          return notifier.updateHospital(
+            existing.id,
+            name: name,
+            address: address,
+            contactPhone: phone,
+            latitude: lat,
+            longitude: lng,
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteHospital(
+      BuildContext context, WidgetRef ref, Hospital hospital) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Hospital?'),
+        content: Text(
+          'This will permanently remove ${hospital.name}. '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 40),
+              backgroundColor: AppColors.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await ref.read(adminHospitalsProvider.notifier).deleteHospital(hospital.id);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+}
+
+class _HospitalCard extends StatelessWidget {
+  final Hospital hospital;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _HospitalCard({
+    required this.hospital,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.secondary.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.local_hospital,
+                  color: AppColors.secondary, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hospital.name,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 15),
+                  ),
+                  if (hospital.address.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      hospital.address,
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                  ],
+                  if (hospital.contactPhone.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      hospital.contactPhone,
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 20),
+              tooltip: 'Edit',
+              onPressed: onEdit,
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 20),
+              tooltip: 'Delete',
+              color: AppColors.error,
+              onPressed: onDelete,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HospitalFormDialog extends StatefulWidget {
+  final Hospital? existing;
+  final Future<void> Function(
+    String name,
+    String address,
+    String phone,
+    double? lat,
+    double? lng,
+  ) onSave;
+
+  const _HospitalFormDialog({this.existing, required this.onSave});
+
+  @override
+  State<_HospitalFormDialog> createState() => _HospitalFormDialogState();
+}
+
+class _HospitalFormDialogState extends State<_HospitalFormDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _addressCtrl;
+  late final TextEditingController _phoneCtrl;
+  double? _lat;
+  double? _lng;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.existing?.name ?? '');
+    _addressCtrl = TextEditingController(text: widget.existing?.address ?? '');
+    _phoneCtrl =
+        TextEditingController(text: widget.existing?.contactPhone ?? '');
+    _lat = widget.existing?.latitude;
+    _lng = widget.existing?.longitude;
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _addressCtrl.dispose();
+    _phoneCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickLocation() async {
+    final picked = await pickLocation(
+      context,
+      initial: _lat != null && _lng != null ? LatLng(_lat!, _lng!) : null,
+    );
+    if (picked != null) {
+      setState(() {
+        _lat = picked.latitude;
+        _lng = picked.longitude;
+      });
+    }
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.onSave(
+        _nameCtrl.text.trim(),
+        _addressCtrl.text.trim(),
+        _phoneCtrl.text.trim(),
+        _lat,
+        _lng,
+      );
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      setState(() {
+        _saving = false;
+        _error = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEdit = widget.existing != null;
+    return AlertDialog(
+      title: Text(isEdit ? 'Edit Hospital' : 'Add Hospital'),
+      content: SizedBox(
+        width: 360,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _nameCtrl,
+                decoration: const InputDecoration(labelText: 'Hospital Name *'),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _addressCtrl,
+                decoration: const InputDecoration(labelText: 'Address'),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _phoneCtrl,
+                decoration: const InputDecoration(labelText: 'Contact Phone'),
+                keyboardType: TextInputType.phone,
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _pickLocation,
+                icon: const Icon(Icons.place_outlined, size: 18),
+                label: Text(
+                  _lat != null && _lng != null
+                      ? 'Location set (${_lat!.toStringAsFixed(4)}, ${_lng!.toStringAsFixed(4)})'
+                      : 'Pick Location on Map',
+                ),
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),

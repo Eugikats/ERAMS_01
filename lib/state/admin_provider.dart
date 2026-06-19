@@ -49,6 +49,11 @@ class FleetNotifier extends AsyncNotifier<List<Ambulance>> {
     );
     await refresh();
   }
+
+  Future<void> deleteAmbulance(String id) async {
+    await AdminService().deleteAmbulance(id);
+    await refresh();
+  }
 }
 
 final fleetNotifierProvider =
@@ -112,10 +117,65 @@ final profilesNotifierProvider =
     AsyncNotifierProvider<ProfilesNotifier, List<Profile>>(
         ProfilesNotifier.new);
 
-// ── Hospitals (shared lookup) ─────────────────────────────────
+// ── Hospitals ─────────────────────────────────────────────────
 
-final adminHospitalsProvider = FutureProvider<List<Hospital>>(
-    (_) => AdminService().fetchAllHospitals());
+class HospitalsNotifier extends AsyncNotifier<List<Hospital>> {
+  @override
+  Future<List<Hospital>> build() => AdminService().fetchAllHospitals();
+
+  Future<void> refresh() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(AdminService().fetchAllHospitals);
+  }
+
+  Future<void> createHospital({
+    required String name,
+    required String address,
+    required String contactPhone,
+    double? latitude,
+    double? longitude,
+  }) async {
+    await AdminService().createHospital(
+      name: name,
+      address: address,
+      contactPhone: contactPhone,
+      latitude: latitude,
+      longitude: longitude,
+    );
+    await refresh();
+  }
+
+  Future<void> updateHospital(
+    String id, {
+    required String name,
+    required String address,
+    required String contactPhone,
+    double? latitude,
+    double? longitude,
+  }) async {
+    await AdminService().updateHospital(
+      id,
+      name: name,
+      address: address,
+      contactPhone: contactPhone,
+      latitude: latitude,
+      longitude: longitude,
+    );
+    await refresh();
+  }
+
+  Future<void> deleteHospital(String id) async {
+    await AdminService().deleteHospital(id);
+    await refresh();
+  }
+}
+
+/// Shared lookup used by the Hospitals tab, the ambulance form's hospital
+/// dropdown, and the Add User dialog's hospital dropdown.
+final adminHospitalsProvider =
+    AsyncNotifierProvider<HospitalsNotifier, List<Hospital>>(
+  HospitalsNotifier.new,
+);
 
 // ── Analytics ────────────────────────────────────────────────
 
