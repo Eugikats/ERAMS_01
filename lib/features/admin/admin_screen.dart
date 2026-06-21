@@ -150,13 +150,18 @@ class _FleetTab extends ConsumerWidget {
         existing: existing,
         hospitals: hospitals,
         drivers: drivers,
-        onSave: (plate, driverId, hospitalId, clearDriver, clearHospital) async {
+        onSave: (plate, driverId, hospitalId, clearDriver, clearHospital,
+            serviceType, baseFare, pricePerKm, equipmentNotes) async {
           final notifier = ref.read(fleetNotifierProvider.notifier);
           if (existing == null) {
             await notifier.createAmbulance(
               plateNumber: plate,
               driverId: driverId,
               hospitalId: hospitalId,
+              serviceType: serviceType,
+              baseFare: baseFare,
+              pricePerKm: pricePerKm,
+              equipmentNotes: equipmentNotes,
             );
           } else {
             await notifier.updateAmbulance(
@@ -166,6 +171,10 @@ class _FleetTab extends ConsumerWidget {
               hospitalId: hospitalId,
               clearDriver: clearDriver,
               clearHospital: clearHospital,
+              serviceType: serviceType,
+              baseFare: baseFare,
+              pricePerKm: pricePerKm,
+              equipmentNotes: equipmentNotes,
             );
           }
         },
@@ -274,6 +283,7 @@ class _AmbulanceCard extends StatelessWidget {
                     runSpacing: 4,
                     children: [
                       StatusBadge(status: ambulance.status.dbValue),
+                      _ServiceTypeBadge(serviceType: ambulance.serviceType),
                       if (driver != null)
                         _InfoChip(
                             icon: Icons.person, label: driver.fullName),
@@ -282,6 +292,17 @@ class _AmbulanceCard extends StatelessWidget {
                             icon: Icons.local_hospital, label: hospital.name),
                     ],
                   ),
+                  if (ambulance.baseFare > 0 || ambulance.pricePerKm > 0) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'UGX ${ambulance.baseFare.toStringAsFixed(0)} base'
+                      ' + ${ambulance.pricePerKm.toStringAsFixed(0)}/km'
+                      '${ambulance.ratingCount > 0 ? '  ★ ${ambulance.rating.toStringAsFixed(1)} (${ambulance.ratingCount})' : ''}',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -307,8 +328,17 @@ class _AmbulanceFormDialog extends StatefulWidget {
   final Ambulance? existing;
   final List<Hospital> hospitals;
   final List<Profile> drivers;
-  final Future<void> Function(String plate, String? driverId, String? hospitalId,
-      bool clearDriver, bool clearHospital) onSave;
+  final Future<void> Function(
+    String plate,
+    String? driverId,
+    String? hospitalId,
+    bool clearDriver,
+    bool clearHospital,
+    String serviceType,
+    double baseFare,
+    double pricePerKm,
+    String equipmentNotes,
+  ) onSave;
 
   const _AmbulanceFormDialog({
     this.existing,
@@ -324,23 +354,41 @@ class _AmbulanceFormDialog extends StatefulWidget {
 class _AmbulanceFormDialogState extends State<_AmbulanceFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _plateCtrl;
+  late final TextEditingController _baseFareCtrl;
+  late final TextEditingController _pricePerKmCtrl;
+  late final TextEditingController _equipmentCtrl;
   String? _driverId;
   String? _hospitalId;
+  String _serviceType = 'BLS';
   bool _saving = false;
   String? _error;
+
+  static const _serviceTypes = ['BLS', 'ALS', 'ICU', 'Neonatal', 'Bariatric'];
 
   @override
   void initState() {
     super.initState();
-    _plateCtrl =
-        TextEditingController(text: widget.existing?.plateNumber ?? '');
-    _driverId = widget.existing?.driverId;
-    _hospitalId = widget.existing?.hospitalId;
+    final e = widget.existing;
+    _plateCtrl = TextEditingController(text: e?.plateNumber ?? '');
+    _baseFareCtrl = TextEditingController(
+        text: e != null && e.baseFare > 0 ? e.baseFare.toStringAsFixed(0) : '');
+    _pricePerKmCtrl = TextEditingController(
+        text: e != null && e.pricePerKm > 0
+            ? e.pricePerKm.toStringAsFixed(0)
+            : '');
+    _equipmentCtrl =
+        TextEditingController(text: e?.equipmentNotes ?? '');
+    _driverId = e?.driverId;
+    _hospitalId = e?.hospitalId;
+    _serviceType = e?.serviceType.dbValue ?? 'BLS';
   }
 
   @override
   void dispose() {
     _plateCtrl.dispose();
+    _baseFareCtrl.dispose();
+    _pricePerKmCtrl.dispose();
+    _equipmentCtrl.dispose();
     super.dispose();
   }
 
@@ -359,6 +407,10 @@ class _AmbulanceFormDialogState extends State<_AmbulanceFormDialog> {
         _hospitalId,
         origDriverId != null && _driverId == null,
         origHospitalId != null && _hospitalId == null,
+        _serviceType,
+        double.tryParse(_baseFareCtrl.text.trim()) ?? 0,
+        double.tryParse(_pricePerKmCtrl.text.trim()) ?? 0,
+        _equipmentCtrl.text.trim(),
       );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -375,58 +427,114 @@ class _AmbulanceFormDialogState extends State<_AmbulanceFormDialog> {
     return AlertDialog(
       title: Text(isEdit ? 'Edit Ambulance' : 'Add Ambulance'),
       content: SizedBox(
-        width: 360,
+        width: 400,
         child: Form(
           key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: _plateCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Plate Number *',
-                  hintText: 'e.g. UAB 123X',
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  controller: _plateCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Plate Number *',
+                    hintText: 'e.g. UAB 123X',
+                  ),
+                  textCapitalization: TextCapitalization.characters,
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
-                textCapitalization: TextCapitalization.characters,
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _driverId,
-                decoration: const InputDecoration(labelText: 'Assigned Driver'),
-                items: [
-                  const DropdownMenuItem(
-                      value: null, child: Text('— None —')),
-                  ...widget.drivers.map((d) => DropdownMenuItem(
-                        value: d.id,
-                        child: Text(d.fullName),
-                      )),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _serviceType,
+                  decoration:
+                      const InputDecoration(labelText: 'Service Type *'),
+                  items: _serviceTypes
+                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      .toList(),
+                  onChanged: (v) =>
+                      setState(() => _serviceType = v ?? 'BLS'),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _baseFareCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Base Fare (UGX)',
+                          hintText: '50000',
+                        ),
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _pricePerKmCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Per Km (UGX)',
+                          hintText: '3000',
+                        ),
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _driverId,
+                  decoration:
+                      const InputDecoration(labelText: 'Assigned Driver'),
+                  items: [
+                    const DropdownMenuItem(
+                        value: null, child: Text('— None —')),
+                    ...widget.drivers.map((d) => DropdownMenuItem(
+                          value: d.id,
+                          child: Text(d.fullName),
+                        )),
+                  ],
+                  onChanged: (v) => setState(() => _driverId = v),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _hospitalId,
+                  decoration:
+                      const InputDecoration(labelText: 'Home Hospital'),
+                  items: [
+                    const DropdownMenuItem(
+                        value: null, child: Text('— None —')),
+                    ...widget.hospitals.map((h) => DropdownMenuItem(
+                          value: h.id,
+                          child: Text(h.name),
+                        )),
+                  ],
+                  onChanged: (v) => setState(() => _hospitalId = v),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _equipmentCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Equipment Notes',
+                    hintText: 'Oxygen, AED, stretcher…',
+                  ),
+                  maxLines: 2,
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(_error!,
+                      style: const TextStyle(
+                          color: AppColors.error, fontSize: 12)),
                 ],
-                onChanged: (v) => setState(() => _driverId = v),
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _hospitalId,
-                decoration:
-                    const InputDecoration(labelText: 'Home Hospital'),
-                items: [
-                  const DropdownMenuItem(
-                      value: null, child: Text('— None —')),
-                  ...widget.hospitals.map((h) => DropdownMenuItem(
-                        value: h.id,
-                        child: Text(h.name),
-                      )),
-                ],
-                onChanged: (v) => setState(() => _hospitalId = v),
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(_error!,
-                    style: const TextStyle(
-                        color: AppColors.error, fontSize: 12)),
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -1991,6 +2099,37 @@ class _SectionHeader extends StatelessWidget {
           const Spacer(),
           if (action != null) action!,
         ],
+      ),
+    );
+  }
+}
+
+class _ServiceTypeBadge extends StatelessWidget {
+  final ServiceType serviceType;
+  const _ServiceTypeBadge({required this.serviceType});
+
+  static Color _color(ServiceType t) => switch (t) {
+    ServiceType.bls       => const Color(0xFF2196F3),
+    ServiceType.als       => const Color(0xFFFF9800),
+    ServiceType.icu       => const Color(0xFFF44336),
+    ServiceType.neonatal  => const Color(0xFFE91E63),
+    ServiceType.bariatric => const Color(0xFF9C27B0),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _color(serviceType);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Text(
+        serviceType.shortLabel,
+        style: TextStyle(
+            fontSize: 11, fontWeight: FontWeight.w600, color: color),
       ),
     );
   }

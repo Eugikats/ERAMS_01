@@ -23,11 +23,19 @@ class FleetNotifier extends AsyncNotifier<List<Ambulance>> {
     required String plateNumber,
     String? driverId,
     String? hospitalId,
+    String serviceType = 'BLS',
+    double baseFare = 0,
+    double pricePerKm = 0,
+    String equipmentNotes = '',
   }) async {
     await AdminService().createAmbulance(
       plateNumber: plateNumber,
       driverId: driverId,
       hospitalId: hospitalId,
+      serviceType: serviceType,
+      baseFare: baseFare,
+      pricePerKm: pricePerKm,
+      equipmentNotes: equipmentNotes,
     );
     await refresh();
   }
@@ -40,6 +48,10 @@ class FleetNotifier extends AsyncNotifier<List<Ambulance>> {
     String? hospitalId,
     bool clearDriver = false,
     bool clearHospital = false,
+    String? serviceType,
+    double? baseFare,
+    double? pricePerKm,
+    String? equipmentNotes,
   }) async {
     await AdminService().updateAmbulance(
       id,
@@ -49,6 +61,10 @@ class FleetNotifier extends AsyncNotifier<List<Ambulance>> {
       hospitalId: hospitalId,
       clearDriver: clearDriver,
       clearHospital: clearHospital,
+      serviceType: serviceType,
+      baseFare: baseFare,
+      pricePerKm: pricePerKm,
+      equipmentNotes: equipmentNotes,
     );
     await refresh();
   }

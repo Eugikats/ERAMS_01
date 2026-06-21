@@ -22,10 +22,18 @@ class AdminService {
     required String plateNumber,
     String? driverId,
     String? hospitalId,
+    String serviceType = 'BLS',
+    double baseFare = 0,
+    double pricePerKm = 0,
+    String equipmentNotes = '',
   }) async {
     await supabaseClient.from('ambulances').insert({
       'plate_number': plateNumber,
       'status': 'offline',
+      'service_type': serviceType,
+      'base_fare': baseFare,
+      'price_per_km': pricePerKm,
+      'equipment_notes': equipmentNotes,
       if (driverId != null) 'driver_id': driverId,
       if (hospitalId != null) 'hospital_id': hospitalId,
     });
@@ -39,6 +47,10 @@ class AdminService {
     String? hospitalId,
     bool clearDriver = false,
     bool clearHospital = false,
+    String? serviceType,
+    double? baseFare,
+    double? pricePerKm,
+    String? equipmentNotes,
   }) async {
     await supabaseClient.from('ambulances').update({
       if (plateNumber != null) 'plate_number': plateNumber,
@@ -47,6 +59,10 @@ class AdminService {
       if (clearDriver) 'driver_id': null,
       if (hospitalId != null) 'hospital_id': hospitalId,
       if (clearHospital) 'hospital_id': null,
+      if (serviceType != null) 'service_type': serviceType,
+      if (baseFare != null) 'base_fare': baseFare,
+      if (pricePerKm != null) 'price_per_km': pricePerKm,
+      if (equipmentNotes != null) 'equipment_notes': equipmentNotes,
     }).eq('id', id);
   }
 

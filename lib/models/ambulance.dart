@@ -30,6 +30,41 @@ enum AmbulanceStatus {
   };
 }
 
+/// Service tier labels matching the DB CHECK constraint on ambulances.service_type.
+enum ServiceType {
+  bls,
+  als,
+  icu,
+  neonatal,
+  bariatric;
+
+  static ServiceType fromString(String value) => switch (value) {
+    'ALS'       => als,
+    'ICU'       => icu,
+    'Neonatal'  => neonatal,
+    'Bariatric' => bariatric,
+    _           => bls,
+  };
+
+  String get dbValue => switch (this) {
+    bls       => 'BLS',
+    als       => 'ALS',
+    icu       => 'ICU',
+    neonatal  => 'Neonatal',
+    bariatric => 'Bariatric',
+  };
+
+  String get label => switch (this) {
+    bls       => 'Basic Life Support',
+    als       => 'Advanced Life Support',
+    icu       => 'ICU Transport',
+    neonatal  => 'Neonatal',
+    bariatric => 'Bariatric',
+  };
+
+  String get shortLabel => dbValue;
+}
+
 class Ambulance {
   final String id;
   final String plateNumber;
@@ -40,6 +75,14 @@ class Ambulance {
   final String? hospitalId;
   final DateTime? lastLocationUpdate;
 
+  // Marketplace fields (Phase 9+)
+  final ServiceType serviceType;
+  final double baseFare;
+  final double pricePerKm;
+  final double rating;
+  final int ratingCount;
+  final String equipmentNotes;
+
   const Ambulance({
     required this.id,
     required this.plateNumber,
@@ -49,6 +92,12 @@ class Ambulance {
     this.driverId,
     this.hospitalId,
     this.lastLocationUpdate,
+    this.serviceType = ServiceType.bls,
+    this.baseFare = 0,
+    this.pricePerKm = 0,
+    this.rating = 0,
+    this.ratingCount = 0,
+    this.equipmentNotes = '',
   });
 
   factory Ambulance.fromJson(Map<String, dynamic> json) {
@@ -63,6 +112,13 @@ class Ambulance {
       lastLocationUpdate: json['last_location_update'] != null
           ? DateTime.parse(json['last_location_update'] as String)
           : null,
+      serviceType: ServiceType.fromString(
+          json['service_type'] as String? ?? 'BLS'),
+      baseFare: (json['base_fare'] as num?)?.toDouble() ?? 0,
+      pricePerKm: (json['price_per_km'] as num?)?.toDouble() ?? 0,
+      rating: (json['rating'] as num?)?.toDouble() ?? 0,
+      ratingCount: json['rating_count'] as int? ?? 0,
+      equipmentNotes: json['equipment_notes'] as String? ?? '',
     );
   }
 }
