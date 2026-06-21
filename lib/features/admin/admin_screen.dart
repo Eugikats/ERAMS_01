@@ -21,7 +21,7 @@ class AdminScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: const AppLogoHorizontal(),
@@ -47,6 +47,7 @@ class AdminScreen extends ConsumerWidget {
               Tab(icon: Icon(Icons.airport_shuttle), text: 'Fleet'),
               Tab(icon: Icon(Icons.local_hospital), text: 'Hospitals'),
               Tab(icon: Icon(Icons.people), text: 'Users'),
+              Tab(icon: Icon(Icons.personal_injury_outlined), text: 'Patients'),
               Tab(icon: Icon(Icons.bar_chart), text: 'Analytics'),
             ],
           ),
@@ -56,6 +57,7 @@ class AdminScreen extends ConsumerWidget {
             _FleetTab(),
             _HospitalsTab(),
             _UsersTab(),
+            _PatientsTab(),
             _AnalyticsTab(),
           ],
         ),
@@ -1440,6 +1442,277 @@ class _UserEditDetailsDialogState extends State<_UserEditDetailsDialog> {
                       strokeWidth: 2, color: Colors.white),
                 )
               : const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Patients Tab ─────────────────────────────────────────────
+
+class _PatientsTab extends ConsumerStatefulWidget {
+  const _PatientsTab();
+
+  @override
+  ConsumerState<_PatientsTab> createState() => _PatientsTabState();
+}
+
+class _PatientsTabState extends ConsumerState<_PatientsTab> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final recordsAsync = ref.watch(patientRecordsProvider);
+
+    return recordsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => _ErrorView(
+        message: e.toString(),
+        onRetry: () => ref.invalidate(patientRecordsProvider),
+      ),
+      data: (records) {
+        final filtered = _query.isEmpty
+            ? records
+            : records.where((r) {
+                final q = _query.toLowerCase();
+                return r.patientName.toLowerCase().contains(q) ||
+                    r.patientPhone.toLowerCase().contains(q) ||
+                    r.natureOfEmergency.toLowerCase().contains(q) ||
+                    (r.ambulancePlate?.toLowerCase().contains(q) ?? false) ||
+                    (r.hospitalName?.toLowerCase().contains(q) ?? false) ||
+                    r.locationDescription.toLowerCase().contains(q);
+              }).toList();
+
+        return Column(
+          children: [
+            _SectionHeader(
+              title: '${records.length} Patient Record${records.length == 1 ? '' : 's'}',
+              action: IconButton(
+                tooltip: 'Refresh',
+                icon: const Icon(Icons.refresh, size: 20),
+                onPressed: () => ref.invalidate(patientRecordsProvider),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Search by name, phone, emergency type, ambulance…',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  suffixIcon: _query.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 18),
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            setState(() => _query = '');
+                          },
+                        )
+                      : null,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                      vertical: 10, horizontal: 12),
+                ),
+                onChanged: (v) => setState(() => _query = v.trim()),
+              ),
+            ),
+            Expanded(
+              child: filtered.isEmpty
+                  ? _EmptyState(
+                      icon: Icons.personal_injury_outlined,
+                      message: _query.isEmpty
+                          ? 'No patient records yet.\nRecords appear here once incidents are logged.'
+                          : 'No records match "$_query".',
+                    )
+                  : RefreshIndicator(
+                      onRefresh: () async =>
+                          ref.invalidate(patientRecordsProvider),
+                      child: ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 8),
+                        itemBuilder: (_, i) =>
+                            _PatientRecordCard(record: filtered[i]),
+                      ),
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PatientRecordCard extends StatelessWidget {
+  final PatientRecord record;
+
+  const _PatientRecordCard({required this.record});
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = AppColors.forStatus(record.status);
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Row 1: patient name + status badge ──────────────
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: statusColor.withValues(alpha: 0.12),
+                  child: Icon(
+                    Icons.personal_injury_outlined,
+                    size: 18,
+                    color: statusColor,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        record.patientName.isNotEmpty
+                            ? record.patientName
+                            : 'Unknown',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 15),
+                      ),
+                      if (record.patientPhone.isNotEmpty)
+                        Text(
+                          record.patientPhone,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary),
+                        ),
+                    ],
+                  ),
+                ),
+                StatusBadge(status: record.status),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // ── Row 2: emergency type ────────────────────────────
+            _DetailRow(
+              icon: Icons.emergency,
+              iconColor: AppColors.error,
+              label: record.natureOfEmergency.isNotEmpty
+                  ? record.natureOfEmergency
+                  : 'Not specified',
+            ),
+            if (record.locationDescription.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              _DetailRow(
+                icon: Icons.place_outlined,
+                label: record.locationDescription,
+              ),
+            ],
+            const SizedBox(height: 8),
+            // ── Row 3: ambulance → hospital ──────────────────────
+            Row(
+              children: [
+                Expanded(
+                  child: _DetailRow(
+                    icon: Icons.airport_shuttle,
+                    iconColor: record.ambulancePlate != null
+                        ? AppColors.statusEnRoute
+                        : AppColors.textHint,
+                    label: record.ambulancePlate ?? 'No ambulance assigned',
+                    faint: record.ambulancePlate == null,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.arrow_forward,
+                    size: 14, color: AppColors.textHint),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _DetailRow(
+                    icon: Icons.local_hospital,
+                    iconColor: record.hospitalName != null
+                        ? AppColors.secondary
+                        : AppColors.textHint,
+                    label: record.hospitalName ?? 'No hospital assigned',
+                    faint: record.hospitalName == null,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // ── Row 4: timestamps + response time ───────────────
+            Wrap(
+              spacing: 12,
+              runSpacing: 4,
+              children: [
+                _InfoChip(
+                  icon: Icons.access_time,
+                  label: _formatDate(record.createdAt),
+                ),
+                if (record.responseTime != null)
+                  _InfoChip(
+                    icon: Icons.timer_outlined,
+                    label: 'Response: ${record.responseTime}',
+                  ),
+                if (record.completedAt != null)
+                  _InfoChip(
+                    icon: Icons.check_circle_outline,
+                    label: 'Completed ${_formatDate(record.completedAt!)}',
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final IconData icon;
+  final Color? iconColor;
+  final String label;
+  final bool faint;
+
+  const _DetailRow({
+    required this.icon,
+    this.iconColor,
+    required this.label,
+    this.faint = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = faint ? AppColors.textHint : AppColors.textSecondary;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 14, color: iconColor ?? color),
+        const SizedBox(width: 5),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 12, color: color),
+          ),
         ),
       ],
     );

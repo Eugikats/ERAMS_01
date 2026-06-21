@@ -232,4 +232,263 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-*Last updated: 18 June 2026 — Phases 0–8 code complete; remaining items are team actions (deploy, screenshots, tag v1.0-demo)*
+---
+
+## Proposal Gap Analysis — Features Not Yet Implemented
+
+*Added 21 June 2026 after cross-referencing the submitted research proposal (Sections 1.3, 1.5, 3.6) with the built codebase. Full details in `ERAMS_TECHNICAL_BUILD_PLAN.md` Section 11.*
+
+---
+
+## Phase 9 — Schema Extensions & Ambulance Marketplace Data [ ] Not started
+
+### Tasks
+- [ ] Migration 006: add `patient` role to `profiles.role` constraint + RLS policies
+- [ ] Migration 007: add `service_type`, `base_fare`, `price_per_km`, `rating`, `rating_count`, `equipment_notes` columns to `ambulances`
+- [ ] Migration 008: create `trips` table with full schema (patient_id, payment_method, payment_status, fare_amount, payment_ref, ratings, offer/accept/decline timestamps)
+- [ ] Migration 009: create `messages` table + enable Realtime publication
+- [ ] Update ambulance seed data with service types and pricing for 5 demo ambulances
+- [ ] Update `lib/models/ambulance.dart` with new marketplace fields
+- [ ] Update Admin Fleet tab: service type badge + pricing fields in Add/Edit ambulance form
+
+### Needs Team Testing
+- Verify all 4 migrations apply cleanly via `supabase db push`
+- Confirm `patient` role login routes correctly (to patient home, once Phase 10 is built)
+- Confirm demo ambulances show BLS/ALS/ICU and pricing in admin Fleet tab
+
+---
+
+## Phase 10 — Patient Registration, Login & Home Screen [ ] Not started
+
+### Tasks
+- [ ] Patient registration form (`AuthService.registerPatient()`)
+- [ ] GoRouter `/patient` route + redirect for patient role
+- [ ] `lib/features/patient/patient_home_screen.dart` — map + nearby ambulance markers (numbered, green) + count chip + Request button
+- [ ] `lib/services/patient_service.dart` — `fetchNearbyAmbulances(lat, lng)` via PostGIS distance order
+- [ ] `lib/state/patient_provider.dart` — `nearbyAmbulancesProvider`, `patientLocationProvider`
+- [ ] Web GPS guard for patient screen
+
+### Needs Team Testing
+- Register a new patient account; confirm it lands on patient home
+- Confirm ambulance markers appear on map centred on Kampala
+- Confirm each marker shows service type, distance, price, rating chip
+
+---
+
+## Phase 11 — Ambulance Request Form & Driver Accept/Decline [ ] Not started
+
+### Tasks
+- [ ] `lib/features/patient/new_request_form.dart` — emergency type, notes, photo upload to Supabase Storage, fare estimate
+- [ ] `lib/features/patient/ambulance_picker_screen.dart` — ranked list with Select button
+- [ ] Migration: add `incidents.photo_url text` column; add `pending_acceptance` to incidents status constraint
+- [ ] Update `dispatch_incident` RPC: accept `p_patient_id`, create/update trips row, set `pending_acceptance` status, set `driver_offered_at`
+- [ ] `accept_trip(incident_id)` Postgres function — sets accepted timestamps, updates statuses
+- [ ] `decline_trip(incident_id)` Postgres function — sets declined, re-runs distance query for next driver
+- [ ] Update `lib/features/driver/driver_screen.dart`: job offer card with 30-second countdown Accept/Decline
+
+### Needs Team Testing
+- Patient submits request → photo uploads → ambulance picker shows ranked list
+- Patient selects ambulance → driver receives job offer card with countdown
+- Driver accepts → both sides move to dispatched state; driver declines → next driver is offered
+- Countdown expires → auto-decline, next driver offered
+
+---
+
+## Phase 12 — Live Trip Tracking (Patient Side) [ ] Not started
+
+### Tasks
+- [ ] `lib/features/patient/trip_tracking_screen.dart` — full-screen map, moving ambulance marker, ETA chip, status banner, driver info bottom sheet
+- [ ] GoRouter `/patient/tracking/:incidentId` route
+- [ ] `activeTrip​Provider` in `patient_provider.dart` — watches patient's active incident
+- [ ] Auto-dismiss tracking screen on `completed` status → show completion summary (response time, driver, fare)
+
+### Needs Team Testing
+- After driver accepts, patient screen transitions to tracking map automatically
+- Ambulance marker moves as driver pushes GPS updates
+- ETA decreases in real time
+- On "Incident Complete" by driver, patient sees completion summary
+
+---
+
+## Phase 13 — In-App Text Messaging [ ] Not started
+
+### Tasks
+- [ ] `lib/widgets/chat_sheet.dart` — reusable chat bottom sheet (message bubbles, input, Realtime subscription)
+- [ ] `lib/services/message_service.dart` — `sendMessage()`, `streamMessages()`
+- [ ] `lib/state/message_provider.dart` — `messagesProvider(incidentId)` StreamProvider
+- [ ] Integrate chat FAB into patient `trip_tracking_screen.dart`
+- [ ] Integrate "Message Patient" button into driver active incident card
+- [ ] Integrate "Message Driver" button into dispatcher incident cards
+- [ ] Unread badge on chat button when messages arrive while sheet is closed
+
+### Needs Team Testing
+- Patient sends message → driver sees it in real time (no refresh)
+- Driver replies → patient sees it instantly
+- Dispatcher messages driver on active incident → driver sees it
+- Unread badge appears on all sides when messages arrive while chat is closed
+- Messages persist after page refresh
+
+---
+
+## Phase 14 — Mobile Money Payment (Flutterwave) [ ] Not started
+
+### Tasks
+- [ ] Add Flutterwave Flutter SDK to `pubspec.yaml`
+- [ ] Payment bottom sheet in ambulance picker: fare breakdown + payment method selector
+- [ ] MTN MoMo + Airtel Money flow via Flutterwave charge API
+- [ ] Card payment via Flutterwave inline checkout WebView
+- [ ] Cash flow: mark `payment_method = 'cash'`, proceed immediately
+- [ ] Edge Function `flutterwave_webhook`: verify signature → update `trips.payment_status` → trigger dispatch
+- [ ] Cash: driver confirms `cash_received` at completion
+- [ ] Admin Patients tab: payment method badge + status on each record
+
+### Needs Team Testing
+- MTN MoMo payment flow completes → driver receives job offer
+- Airtel Money payment flow completes
+- Cash selection bypasses payment → driver notified immediately
+- Failed payment → patient sees clear error, can retry
+- Admin sees Paid / Cash / Pending / Failed status on each patient record
+
+---
+
+## Phase 15 — Ratings System [ ] Not started
+
+### Tasks
+- [ ] `lib/features/patient/trip_rating_screen.dart` — 5-star row + comment + Submit/Skip
+- [ ] `PatientService.submitRating()` — writes `trips.patient_rating` + `trips.patient_comment`
+- [ ] Postgres trigger `update_ambulance_rating` — recalculates `ambulances.rating` and `rating_count` on trips update
+- [ ] Update ambulance cards in patient home + picker: show filled stars + count
+- [ ] Update Admin Fleet tab: show rating badge on ambulance cards
+
+### Needs Team Testing
+- Rating screen appears automatically after trip completion
+- Submitting a rating updates the ambulance's average immediately (visible in patient home map after refresh)
+- Skipping does not block patient from using the app again
+- Admin Fleet tab shows updated rating on the ambulance card
+
+---
+
+## Phase 16 — SMS Notifications (Africa's Talking) [ ] Not started
+
+### Tasks
+- [ ] Africa's Talking account setup; `AT_API_KEY` + `AT_USERNAME` in Edge Function secrets
+- [ ] Edge Function `send_sms` shared helper
+- [ ] SMS on driver job offer, patient driver-accepted, patient driver-arrived, hospital incoming patient
+- [ ] Phone number validation (+256 format) on patient registration
+- [ ] Graceful failure logging to `incident_events`
+
+### Needs Team Testing
+- Close the driver app; trigger a dispatch → driver receives SMS within 30 seconds
+- Patient receives SMS when driver accepts
+- Hospital staff receives SMS when patient is dispatched to their hospital
+- Invalid phone number rejected at registration
+
+---
+
+## Phase 17 — DHIS2 Export & Analytics Enhancements [ ] Not started
+
+### Tasks
+- [ ] Edge Function `export_to_dhis2` — aggregate completed incidents → DHIS2 Data Value Sets API
+- [ ] "Export to DHIS2" button in Admin Analytics tab + date-range picker dialog
+- [ ] "Download Report" CSV button
+- [ ] Fleet utilisation donut chart
+- [ ] Calls today + completion rate KPI cards
+- [ ] Response time per call bar chart (last 10 incidents)
+- [ ] Calls by emergency type bar chart
+
+### Needs Team Testing
+- Export to DHIS2 succeeds with valid credentials (or shows clear error with invalid ones)
+- CSV download contains correct incident data for the selected date range
+- Analytics tab visually matches the prototype Insights screen
+
+---
+
+## Phase 18 — Voice & Video Calls (Agora) [ ] Not started
+
+### Tasks
+- [ ] Agora project setup; `AGORA_APP_ID` in `.env` and Edge Function secrets
+- [ ] Edge Function `generate_agora_token`
+- [ ] `lib/widgets/call_screen.dart` — full call UI (video feed, mute, camera, speaker, end)
+- [ ] Voice + video call buttons on patient tracking screen and driver incident card
+- [ ] Android permissions: `RECORD_AUDIO`, `CAMERA` in AndroidManifest.xml
+- [ ] Web browser permission prompts
+
+### Needs Team Testing
+- Patient initiates voice call → driver receives it and can accept
+- Both sides can hear each other
+- Video call shows both camera feeds
+- Call ends cleanly and returns to trip tracking screen
+- Works on Android physical device + Chrome web
+
+---
+
+## Phase 19 — Final Validation, Diagrams & Full Report Prep [ ] Not started
+
+### Tasks
+- [ ] DFD Level 0 (Context Diagram) — saved to `docs/diagrams/dfd_level0.svg`
+- [ ] DFD Level 1 (System Diagram) — saved to `docs/diagrams/dfd_level1.svg`
+- [ ] UML Use Case Diagram (all 5 roles) — saved to `docs/diagrams/use_case.svg`
+- [ ] UML Sequence Diagrams: patient booking flow, payment flow, dispatcher flow — saved to `docs/diagrams/`
+- [ ] Update `EVALUATION_FORM.md`: add Section G for patient experience
+- [ ] Full smoke test: patient registers → requests → pays → driver accepts → tracks → completes → rates
+- [ ] Update README with Phase 9–19 setup instructions (Flutterwave, Agora, Africa's Talking)
+- [ ] Tag release `v2.0-complete`
+
+---
+
+### Critical Gap — Patient Portal (entire module missing)
+
+The prototype's primary innovation is a **patient-initiated, ride-hailing ambulance request flow** (like SafeBoda / Faras). This is entirely absent from the current system. The current system is dispatcher-initiated only — patients must phone in and a dispatcher logs on their behalf. The prototype shows:
+
+1. Patient logs in → sees live map of nearby ambulances with pricing, ratings, service type
+2. Patient fills in emergency details + optional photo
+3. Patient selects preferred ambulance
+4. Patient pays via mobile money (MTN MoMo / Airtel Money) or cash
+5. Driver **accepts** the job (not silently assigned)
+6. Patient tracks driver live on map
+7. Patient and driver communicate via in-app text/voice/video
+8. Patient rates the ambulance after completion
+
+| Gap | Status | Notes |
+| --- | --- | --- |
+| **Patient role + registration/login** | `[ ]` Not started | Needs new role in `profiles`, RLS policies, GoRouter route |
+| **Ambulance marketplace** (pricing, ratings, service type) | `[ ]` Not started | Needs schema columns added to `ambulances` table |
+| **Patient request form** (location, emergency type, photo) | `[ ]` Not started | New `lib/features/patient/` module |
+| **Nearby ambulances map view** | `[ ]` Not started | Patient sees live ambulance markers with cards |
+| **Driver accept / decline job** | `[ ]` Not started | Replaces silent assignment; 30-second countdown |
+| **Live trip tracking for patient** | `[ ]` Not started | Patient watches driver approach on map |
+| **In-app messaging** (patient ↔ driver) | `[ ]` Not started | New `messages` table + chat UI on both sides |
+| **In-app voice/video call** | `[ ]` Not started | Requires WebRTC/Agora SDK |
+| **Mobile money payment** | `[ ]` Not started | Flutterwave SDK (MTN MoMo + Airtel Money) |
+| **Post-trip rating system** | `[ ]` Not started | 1–5 stars; updates `ambulances.rating` |
+| **Dispatcher ↔ driver messaging** | `[ ]` Not started | Shares same messages infra |
+| **SMS fallback notifications** | `[ ]` Not started | Africa's Talking Edge Function |
+| **DHIS2 export** (shown in prototype Insights tab) | `[ ]` Not started | "Export to DHIS2" button in Admin Analytics |
+
+Full implementation plan for the patient portal is in `ERAMS_TECHNICAL_BUILD_PLAN.md` **Phase 9** and **Section 11.2**.
+
+These are **not blockers for the v1.0-demo of the dispatcher/driver/hospital/admin system** but represent the primary patient-facing feature the system is ultimately meant to deliver. They should be documented as planned Phase 9 work in the final report (Chapter 5).
+
+---
+
+---
+
+## Admin Dashboard — Patients Tab ✓ Added
+
+- [x] **Patients tab** (5th tab in admin dashboard): full searchable list of every incident in the system, showing patient name, phone, nature of emergency, incident location, ambulance dispatched (plate number), hospital taken to, incident status badge, logged time, and calculated response time (created_at → arrived_at)
+- [x] `PatientRecord` model class in `admin_service.dart` — joined query: `incidents.*` + `ambulances(plate_number)` + `hospitals(name)`, ordered newest first
+- [x] `fetchAllPatientRecords()` in `AdminService`
+- [x] `patientRecordsProvider` in `admin_provider.dart`
+- [x] `_PatientsTab` + `_PatientRecordCard` + `_DetailRow` in `admin_screen.dart`
+- [x] Live search/filter by patient name, phone, emergency type, ambulance plate, hospital, location
+- [x] Pull-to-refresh
+
+### Needs Team Testing
+- Log in as admin, open the Patients tab — confirm all logged incidents appear, newest first.
+- Each card should show: patient name/phone, emergency type, location, ambulance plate (or "No ambulance assigned"), hospital name (or "No hospital assigned"), status badge, logged time, response time (if arrived).
+- Run a full dispatch cycle, confirm the record updates (refresh to see latest status).
+- Type in the search box — confirm filtering works across all fields.
+
+---
+
+*Last updated: 21 June 2026 — Patients tab added to admin dashboard; Phases 0–8 code complete; remaining items are team actions (deploy, screenshots, tag v1.0-demo)*

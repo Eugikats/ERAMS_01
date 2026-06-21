@@ -5,6 +5,9 @@ import '../models/hospital.dart';
 import '../models/profile.dart';
 import '../services/admin_service.dart';
 
+// Re-export so screens only need to import admin_provider.dart
+export '../services/admin_service.dart' show PatientRecord, AdminAnalytics;
+
 // ── Fleet ─────────────────────────────────────────────────────
 
 class FleetNotifier extends AsyncNotifier<List<Ambulance>> {
@@ -181,3 +184,8 @@ final adminHospitalsProvider =
 
 final analyticsProvider = FutureProvider<AdminAnalytics>(
     (_) => AdminService().fetchAnalytics());
+
+// ── Patient Records ──────────────────────────────────────────
+
+final patientRecordsProvider = FutureProvider<List<PatientRecord>>(
+    (_) => AdminService().fetchAllPatientRecords());

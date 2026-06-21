@@ -233,6 +233,18 @@ class AdminService {
     await supabaseClient.from('hospitals').delete().eq('id', id);
   }
 
+  // ── Patient Records ──────────────────────────────────────────
+
+  Future<List<PatientRecord>> fetchAllPatientRecords() async {
+    final data = await supabaseClient
+        .from('incidents')
+        .select('*, ambulances(plate_number), hospitals(name)')
+        .order('created_at', ascending: false);
+    return (data as List)
+        .map((e) => PatientRecord.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   // ── Analytics ────────────────────────────────────────────────
 
   Future<AdminAnalytics> fetchAnalytics() async {
@@ -281,6 +293,71 @@ class AdminService {
       avgResponseSeconds: avgResponseSec,
       countByHospital: byHospital,
       totalIncidents: counts.values.fold(0, (a, b) => a + b),
+    );
+  }
+}
+
+// ── Patient Records ──────────────────────────────────────────
+
+class PatientRecord {
+  final String incidentId;
+  final String patientName;
+  final String patientPhone;
+  final String natureOfEmergency;
+  final String locationDescription;
+  final String status;
+  final String? ambulancePlate;
+  final String? hospitalName;
+  final DateTime createdAt;
+  final DateTime? dispatchedAt;
+  final DateTime? arrivedAt;
+  final DateTime? completedAt;
+
+  const PatientRecord({
+    required this.incidentId,
+    required this.patientName,
+    required this.patientPhone,
+    required this.natureOfEmergency,
+    required this.locationDescription,
+    required this.status,
+    this.ambulancePlate,
+    this.hospitalName,
+    required this.createdAt,
+    this.dispatchedAt,
+    this.arrivedAt,
+    this.completedAt,
+  });
+
+  String? get responseTime {
+    if (arrivedAt == null) return null;
+    final diff = arrivedAt!.difference(createdAt);
+    final m = diff.inMinutes;
+    final s = diff.inSeconds % 60;
+    return m > 0 ? '${m}m ${s}s' : '${s}s';
+  }
+
+  factory PatientRecord.fromJson(Map<String, dynamic> json) {
+    final ambulance = json['ambulances'] as Map<String, dynamic>?;
+    final hospital = json['hospitals'] as Map<String, dynamic>?;
+    return PatientRecord(
+      incidentId: json['id'] as String,
+      patientName: json['reporter_name'] as String? ?? '',
+      patientPhone: json['reporter_phone'] as String? ?? '',
+      natureOfEmergency: json['nature_of_emergency'] as String? ?? '',
+      locationDescription: json['location_description'] as String? ?? '',
+      status: json['status'] as String? ?? 'logged',
+      ambulancePlate: ambulance?['plate_number'] as String?,
+      hospitalName: hospital?['name'] as String?,
+      createdAt: DateTime.parse(json['created_at'] as String),
+      dispatchedAt: json['dispatched_at'] != null
+          ? DateTime.parse(json['dispatched_at'] as String)
+          : null,
+      arrivedAt: json['arrived_at'] != null
+          ? DateTime.parse(json['arrived_at'] as String)
+          : null,
+      completedAt: json['completed_at'] != null
+          ? DateTime.parse(json['completed_at'] as String)
+          : null,
     );
   }
 }
