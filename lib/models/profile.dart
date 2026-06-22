@@ -2,13 +2,15 @@ enum UserRole {
   dispatcher,
   driver,
   hospital,
-  admin;
+  admin,
+  patient;
 
   static UserRole fromString(String value) => switch (value) {
     'dispatcher' => dispatcher,
     'driver' => driver,
     'hospital' => hospital,
     'admin' => admin,
+    'patient' => patient,
     _ => driver,
   };
 
@@ -17,6 +19,7 @@ enum UserRole {
     driver => 'Ambulance Driver',
     hospital => 'Hospital Staff',
     admin => 'Administrator',
+    patient => 'Patient',
   };
 
   String get routePath => switch (this) {
@@ -24,6 +27,7 @@ enum UserRole {
     driver => '/driver',
     hospital => '/hospital',
     admin => '/admin',
+    patient => '/patient',
   };
 }
 

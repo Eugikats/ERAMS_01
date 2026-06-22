@@ -1176,6 +1176,7 @@ class _UserCardState extends State<_UserCard> {
       UserRole.dispatcher => AppColors.secondary,
       UserRole.driver => AppColors.statusEnRoute,
       UserRole.hospital => AppColors.statusArrived,
+      UserRole.patient => AppColors.textSecondary,
     };
 
     return Card(

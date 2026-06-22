@@ -13,6 +13,31 @@ class AuthService {
     return _fetchProfile();
   }
 
+  /// Self-registration for patients: creates Supabase auth user + profile row.
+  Future<void> registerPatient({
+    required String email,
+    required String password,
+    required String fullName,
+    required String phone,
+  }) async {
+    final res = await supabaseClient.auth.signUp(
+      email: email,
+      password: password,
+      data: {'full_name': fullName},
+    );
+    final userId = res.user?.id;
+    if (userId == null) throw Exception('Registration failed — please try again.');
+
+    // Upsert profile in case the trigger created a partial row already
+    await supabaseClient.from('profiles').upsert({
+      'id': userId,
+      'full_name': fullName,
+      'phone': phone,
+      'email': email,
+      'role': 'patient',
+    });
+  }
+
   Future<void> signOut() async {
     await supabaseClient.auth.signOut();
   }

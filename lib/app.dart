@@ -5,9 +5,11 @@ import 'core/theme/app_theme.dart';
 import 'features/admin/admin_screen.dart';
 import 'features/auth/force_password_change_screen.dart';
 import 'features/auth/login_screen.dart';
+import 'features/auth/patient_register_screen.dart';
 import 'features/dispatcher/dispatcher_dashboard.dart';
 import 'features/driver/driver_screen.dart';
 import 'features/hospital/hospital_screen.dart';
+import 'features/patient/patient_home_screen.dart';
 import 'services/supabase_service.dart';
 
 class EramsApp extends StatelessWidget {
@@ -33,8 +35,9 @@ final _router = GoRouter(
   refreshListenable: _AuthChangeNotifier(),
   redirect: (context, state) {
     final session = supabaseClient.auth.currentSession;
-    final onLogin = state.matchedLocation == '/login';
-    if (session == null && !onLogin) return '/login';
+    final loc = state.matchedLocation;
+    final isPublic = loc == '/login' || loc == '/patient/register';
+    if (session == null && !isPublic) return '/login';
 
     final onForceChange = state.matchedLocation == '/force-password-change';
     final mustChangePassword = session != null &&
@@ -70,6 +73,14 @@ final _router = GoRouter(
     GoRoute(
       path: '/admin',
       builder: (_, __) => const AdminScreen(),
+    ),
+    GoRoute(
+      path: '/patient',
+      builder: (_, __) => const PatientHomeScreen(),
+    ),
+    GoRoute(
+      path: '/patient/register',
+      builder: (_, __) => const PatientRegisterScreen(),
     ),
   ],
 );

@@ -173,7 +173,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text('Need an ambulance? '),
+                      TextButton(
+                        onPressed: () => context.go('/patient/register'),
+                        child: const Text('Register as Patient'),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
                   Text(
                     'Kyambogo University · BITC 2025–2026',
                     style: Theme.of(context)
