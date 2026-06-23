@@ -1,10 +1,20 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Path-based URLs (no `#`) so go_router never tries to parse Supabase's
+  // `#access_token=...` auth-link fragment as a route — the two collided
+  // under the default hash strategy and crashed on email confirmation and
+  // password recovery links.
+  if (kIsWeb) {
+    usePathUrlStrategy();
+  }
 
   const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
   const supabaseKey = String.fromEnvironment('SUPABASE_ANON_KEY');

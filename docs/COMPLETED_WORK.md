@@ -273,6 +273,18 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 - Confirm ambulance markers appear on map centred on Kampala
 - Confirm each marker shows service type, distance, price, rating chip
 
+### Bug Fix — Auth Email Link Routing (Email Confirmation + Password Recovery)
+- [x] **Root cause**: Flutter Web defaults to hash-based URL routing, and `go_router` was trying to parse Supabase's `#access_token=...&type=...` auth-link fragment as a navigation target — crashing with `GoException: no routes for location` on both signup-confirmation and password-recovery email links.
+- [x] `pubspec.yaml` / `main.dart` — added `flutter_web_plugins` and called `usePathUrlStrategy()` (web only) so the URL fragment is freed up exclusively for Supabase; Firebase Hosting's existing `** → /index.html` rewrite rule means this doesn't break refreshes/direct links
+- [x] `auth_service.dart` — `registerPatient()`'s `signUp()` now passes `emailRedirectTo: Uri.base.origin` (web only) so confirmation links point at whatever domain the app is actually running on, instead of depending solely on the Supabase Dashboard's Site URL default
+- [x] `app.dart` — router now tracks the most recent `AuthChangeEvent`; when a password-recovery link lands (`AuthChangeEvent.passwordRecovery`), it's redirected to the existing `ForcePasswordChangeScreen` (same screen used for admin-issued temp passwords) instead of silently signing in with no prompt
+- **Manual dashboard step (already done)**: Supabase Dashboard → Authentication → URL Configuration — Site URL set to `https://erams-98eb2.web.app`, and that URL added to Redirect URLs
+
+### Needs Team Testing (bug fix)
+- Register a brand-new patient account, open the confirmation email, click "Verify Account" — confirm it lands on the live app (not localhost) and doesn't crash, and that you're signed in afterward.
+- From the Supabase Dashboard, send a password-recovery email to a test account, click the link — confirm it opens the live app and shows the "Set a New Password" screen instead of a "Page Not Found" crash.
+- Confirm normal navigation (login, role dashboards, refreshing on `/admin`, `/dispatcher`, etc.) still works correctly now that URLs are path-based instead of hash-based.
+
 ---
 
 ## Phase 11 — Ambulance Request Form & Driver Accept/Decline [ ] Not started

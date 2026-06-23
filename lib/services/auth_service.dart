@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import '../models/profile.dart';
 import 'supabase_service.dart';
 
@@ -30,6 +32,12 @@ class AuthService {
         'role': 'patient',
         'phone': phone,
       },
+      // Sends the confirmation link back to wherever this app is actually
+      // running (the deployed Firebase Hosting URL, or localhost during
+      // dev) instead of relying solely on the Supabase project's Site URL
+      // default. Must also be added to Authentication → URL Configuration
+      // → Redirect URLs in the Supabase Dashboard, or Supabase ignores it.
+      emailRedirectTo: kIsWeb ? Uri.base.origin : null,
     );
     if (res.user == null) throw Exception('Registration failed — please try again.');
     // The on_auth_user_created trigger creates the profiles row automatically

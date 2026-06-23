@@ -10,6 +10,11 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # Web URL strategy (path-based routing instead of hash, so Supabase's
+  # #access_token=... auth links don't collide with go_router)
+  flutter_web_plugins:
+    sdk: flutter
+
   # Supabase
   supabase_flutter: ^2.0.0
 

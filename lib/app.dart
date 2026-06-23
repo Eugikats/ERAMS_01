@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/theme/app_theme.dart';
 import 'features/admin/admin_screen.dart';
@@ -30,9 +31,11 @@ class EramsApp extends StatelessWidget {
 // Router — re-evaluates on every Supabase auth state change
 // ---------------------------------------------------------------
 
+final _authChangeNotifier = _AuthChangeNotifier();
+
 final _router = GoRouter(
   initialLocation: '/login',
-  refreshListenable: _AuthChangeNotifier(),
+  refreshListenable: _authChangeNotifier,
   redirect: (context, state) {
     final session = supabaseClient.auth.currentSession;
     final loc = state.matchedLocation;
@@ -40,9 +43,17 @@ final _router = GoRouter(
     if (session == null && !isPublic) return '/login';
 
     final onForceChange = state.matchedLocation == '/force-password-change';
+
+    // A Supabase recovery-email link landed here — force a password change
+    // the same way an admin-issued temp password does, before going anywhere
+    // else. `lastEvent` resets to something else as soon as the password is
+    // actually updated, so this doesn't stick around afterward.
+    final isPasswordRecovery =
+        _authChangeNotifier.lastEvent == AuthChangeEvent.passwordRecovery;
     final mustChangePassword = session != null &&
-        supabaseClient.auth.currentUser?.userMetadata?['must_change_password'] ==
-            true;
+        (supabaseClient.auth.currentUser?.userMetadata?['must_change_password'] ==
+                true ||
+            isPasswordRecovery);
     if (mustChangePassword && !onForceChange) return '/force-password-change';
 
     return null;
@@ -86,10 +97,17 @@ final _router = GoRouter(
 );
 
 /// Notifies GoRouter whenever the Supabase auth state changes so that
-/// the redirect guard re-evaluates on login and logout.
+/// the redirect guard re-evaluates on login and logout. Also tracks the
+/// most recent event type so the redirect guard can detect a password
+/// recovery link landing (see `isPasswordRecovery` above).
 class _AuthChangeNotifier extends ChangeNotifier {
+  AuthChangeEvent? lastEvent;
+
   _AuthChangeNotifier() {
-    supabaseClient.auth.onAuthStateChange.listen((_) => notifyListeners());
+    supabaseClient.auth.onAuthStateChange.listen((data) {
+      lastEvent = data.event;
+      notifyListeners();
+    });
   }
 }
 
