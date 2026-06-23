@@ -22,6 +22,7 @@ class _PatientRegisterScreenState extends State<PatientRegisterScreen> {
   bool _obscurePassword = true;
   bool _isLoading = false;
   String? _error;
+  String? _successMessage;
 
   @override
   void dispose() {
@@ -38,16 +39,22 @@ class _PatientRegisterScreenState extends State<PatientRegisterScreen> {
     setState(() {
       _isLoading = true;
       _error = null;
+      _successMessage = null;
     });
     try {
-      await AuthService().registerPatient(
+      final signedIn = await AuthService().registerPatient(
         email: _emailCtrl.text.trim(),
         password: _passwordCtrl.text,
         fullName: _nameCtrl.text.trim(),
         phone: _phoneCtrl.text.trim(),
       );
       if (!mounted) return;
-      context.go('/patient');
+      if (signedIn) {
+        context.go('/patient');
+      } else {
+        setState(() => _successMessage =
+            'Account created! Check your email to confirm, then sign in.');
+      }
     } catch (e) {
       setState(() => _error = _friendlyError(e.toString()));
     } finally {
@@ -57,7 +64,15 @@ class _PatientRegisterScreenState extends State<PatientRegisterScreen> {
 
   String _friendlyError(String raw) {
     final msg = raw.toLowerCase();
-    if (msg.contains('already registered') || msg.contains('already exists')) {
+    if (msg.contains('429') ||
+        msg.contains('rate limit') ||
+        msg.contains('too many')) {
+      return 'Too many attempts. Please wait a few minutes and try again.';
+    }
+    if (msg.contains('already registered') ||
+        msg.contains('already exists') ||
+        msg.contains('email address is already used') ||
+        msg.contains('user already registered')) {
       return 'An account with this email already exists. Sign in instead.';
     }
     if (msg.contains('password')) {
@@ -217,6 +232,32 @@ class _PatientRegisterScreenState extends State<PatientRegisterScreen> {
                                       child: Text(_error!,
                                           style: const TextStyle(
                                               color: AppColors.error,
+                                              fontSize: 13)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                            if (_successMessage != null) ...[
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade50,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: Colors.green.withValues(alpha: 0.4)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.check_circle_outline,
+                                        color: Colors.green.shade700, size: 18),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(_successMessage!,
+                                          style: TextStyle(
+                                              color: Colors.green.shade700,
                                               fontSize: 13)),
                                     ),
                                   ],

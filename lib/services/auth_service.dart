@@ -14,7 +14,9 @@ class AuthService {
   }
 
   /// Self-registration for patients: creates Supabase auth user + profile row.
-  Future<void> registerPatient({
+  /// Returns true if the session is established immediately (email confirmation
+  /// disabled), or false if the user must confirm their email first.
+  Future<bool> registerPatient({
     required String email,
     required String password,
     required String fullName,
@@ -23,19 +25,16 @@ class AuthService {
     final res = await supabaseClient.auth.signUp(
       email: email,
       password: password,
-      data: {'full_name': fullName},
+      data: {
+        'full_name': fullName,
+        'role': 'patient',
+        'phone': phone,
+      },
     );
-    final userId = res.user?.id;
-    if (userId == null) throw Exception('Registration failed — please try again.');
-
-    // Upsert profile in case the trigger created a partial row already
-    await supabaseClient.from('profiles').upsert({
-      'id': userId,
-      'full_name': fullName,
-      'phone': phone,
-      'email': email,
-      'role': 'patient',
-    });
+    if (res.user == null) throw Exception('Registration failed — please try again.');
+    // The on_auth_user_created trigger creates the profiles row automatically
+    // using the metadata above. No client-side INSERT needed.
+    return res.session != null;
   }
 
   Future<void> signOut() async {
