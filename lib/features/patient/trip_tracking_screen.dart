@@ -11,7 +11,9 @@ import '../../core/theme/app_colors.dart';
 import '../../models/ambulance.dart';
 import '../../models/incident.dart';
 import '../../models/trip.dart';
+import '../../state/message_provider.dart';
 import '../../state/patient_provider.dart';
+import '../../widgets/chat_sheet.dart';
 
 class TripTrackingScreen extends ConsumerStatefulWidget {
   final String incidentId;
@@ -135,6 +137,30 @@ class _TripTrackingScreenState extends ConsumerState<TripTrackingScreen> {
                 left: 16,
                 right: 16,
                 child: _StatusBanner(status: incident.status),
+              ),
+
+              // ── Chat FAB ─────────────────────────────────────────────────
+              Positioned(
+                bottom: 264,
+                right: 16,
+                child: Builder(
+                  builder: (ctx) {
+                    final msgs = ref.watch(
+                        messagesProvider(widget.incidentId));
+                    final seen = ref.watch(
+                        chatSeenProvider)[widget.incidentId] ?? 0;
+                    final unread = ((msgs.valueOrNull?.length ?? 0) -
+                            seen)
+                        .clamp(0, 99);
+                    return FloatingActionButton.small(
+                      heroTag: 'chat_tracking',
+                      tooltip: 'Chat',
+                      onPressed: () => showChatSheet(
+                          context, widget.incidentId),
+                      child: chatIconWithBadge(unread),
+                    );
+                  },
+                ),
               ),
 
               // ── Re-center FAB ─────────────────────────────────────────────

@@ -13,7 +13,9 @@ import '../../services/incident_service.dart';
 import '../../services/profile_service.dart';
 import '../../state/auth_provider.dart';
 import '../../state/dispatcher_provider.dart';
+import '../../state/message_provider.dart';
 import '../../widgets/app_logo.dart';
+import '../../widgets/chat_sheet.dart';
 import '../../widgets/incident_history_list.dart';
 import '../../widgets/profile_edit_sheet.dart';
 import '../../widgets/status_badge.dart';
@@ -659,27 +661,52 @@ class _IncidentCardState extends ConsumerState<_IncidentCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── Row 1: status badge + time ──
-                Row(
-                  children: [
-                    StatusBadge(status: widget.incident.status.dbValue),
-                    const Spacer(),
-                    Text(
-                      _timeAgo(widget.incident.createdAt),
-                      style: const TextStyle(
-                          fontSize: 11, color: AppColors.textSecondary),
-                    ),
-                    const SizedBox(width: 4),
-                    InkWell(
-                      onTap: () => _showDetails(context),
-                      borderRadius: BorderRadius.circular(16),
-                      child: const Padding(
-                        padding: EdgeInsets.all(4),
-                        child: Icon(Icons.info_outline,
-                            size: 18, color: AppColors.textSecondary),
-                      ),
-                    ),
-                  ],
+                // ── Row 1: status badge + time + chat + info ──
+                Builder(
+                  builder: (ctx) {
+                    final msgs = ref.watch(
+                        messagesProvider(widget.incident.id));
+                    final seen = ref.watch(
+                            chatSeenProvider)[widget.incident.id] ??
+                        0;
+                    final unread =
+                        ((msgs.valueOrNull?.length ?? 0) - seen)
+                            .clamp(0, 99);
+                    return Row(
+                      children: [
+                        StatusBadge(
+                            status: widget.incident.status.dbValue),
+                        const Spacer(),
+                        Text(
+                          _timeAgo(widget.incident.createdAt),
+                          style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(width: 4),
+                        InkWell(
+                          onTap: () => showChatSheet(
+                              context, widget.incident.id),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: chatIconWithBadge(unread),
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        InkWell(
+                          onTap: () => _showDetails(context),
+                          borderRadius: BorderRadius.circular(16),
+                          child: const Padding(
+                            padding: EdgeInsets.all(4),
+                            child: Icon(Icons.info_outline,
+                                size: 18,
+                                color: AppColors.textSecondary),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 8),
                 // ── Nature of emergency ──

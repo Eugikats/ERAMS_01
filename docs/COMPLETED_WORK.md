@@ -341,23 +341,25 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 13 — In-App Text Messaging [ ] Not started
+## Phase 13 — In-App Text Messaging [x] Complete
 
 ### Tasks
-- [ ] `lib/widgets/chat_sheet.dart` — reusable chat bottom sheet (message bubbles, input, Realtime subscription)
-- [ ] `lib/services/message_service.dart` — `sendMessage()`, `streamMessages()`
-- [ ] `lib/state/message_provider.dart` — `messagesProvider(incidentId)` StreamProvider
-- [ ] Integrate chat FAB into patient `trip_tracking_screen.dart`
-- [ ] Integrate "Message Patient" button into driver active incident card
-- [ ] Integrate "Message Driver" button into dispatcher incident cards
-- [ ] Unread badge on chat button when messages arrive while sheet is closed
+- [x] `supabase/migrations/20260624000013_messages.sql` — `messages` table with `incident_id`, `sender_id`, `sender_role`, `sender_name`, `body`, `created_at`; BEFORE INSERT trigger populates `sender_role`/`sender_name` from profiles (prevents spoofing); RLS: dispatchers/admins see all; patients see their own incident's messages; drivers see messages on their active incidents; Realtime publication added
+- [x] `lib/models/chat_message.dart` — `ChatMessage` model with `isMe(userId)` helper
+- [x] `lib/services/message_service.dart` — `streamMessages(incidentId)` (Supabase `.stream()`) + `sendMessage(incidentId, body)`
+- [x] `lib/state/message_provider.dart` — `messagesProvider(incidentId)` StreamProvider.family.autoDispose; `chatSeenProvider` StateNotifierProvider tracking per-incident seen count for unread badge
+- [x] `lib/widgets/chat_sheet.dart` — `ChatSheet` (DraggableScrollableSheet): message bubbles (mine right/red, theirs left/grey), sender name + role tag on others' messages, timestamps, auto-scroll on new messages, marks seen while open; `showChatSheet(context, incidentId)` helper; `chatIconWithBadge(unread)` reusable badge icon
+- [x] `lib/features/patient/trip_tracking_screen.dart` — chat FAB added above re-center FAB; watches `messagesProvider` + `chatSeenProvider` for live unread badge
+- [x] `lib/features/driver/driver_screen.dart` — "Chat (N new)" `OutlinedButton.icon` added to `_ActiveIncidentCard` between Navigate and Advance buttons; unread count shown in label
+- [x] `lib/features/dispatcher/dispatcher_dashboard.dart` — chat icon button with badge added to `_IncidentCard` Row 1 (next to ℹ️ info button); `messagesProvider` watched per card for live unread count
 
 ### Needs Team Testing
-- Patient sends message → driver sees it in real time (no refresh)
-- Driver replies → patient sees it instantly
-- Dispatcher messages driver on active incident → driver sees it
-- Unread badge appears on all sides when messages arrive while chat is closed
-- Messages persist after page refresh
+- Patient sends message → driver sees it in real time (no refresh needed)
+- Driver replies → patient sees it instantly on tracking screen (badge on FAB)
+- Dispatcher opens chat → sees all messages from patient and driver
+- Unread badge increments on all sides when messages arrive while chat is closed
+- Opening chat resets badge to 0 on that screen
+- Messages persist after page refresh (stored in Supabase)
 
 ---
 

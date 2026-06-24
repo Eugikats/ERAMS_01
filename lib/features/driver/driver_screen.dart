@@ -13,7 +13,9 @@ import '../../services/auth_service.dart';
 import '../../services/profile_service.dart';
 import '../../state/auth_provider.dart';
 import '../../state/driver_provider.dart';
+import '../../state/message_provider.dart';
 import '../../widgets/app_logo.dart';
+import '../../widgets/chat_sheet.dart';
 import '../../widgets/incident_history_list.dart';
 import '../../widgets/profile_edit_sheet.dart';
 import '../../widgets/status_badge.dart';
@@ -924,6 +926,46 @@ class _ActiveIncidentCardState
                     ),
                   ),
                 ),
+              // Chat with patient/dispatcher
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Builder(
+                  builder: (ctx) {
+                    final msgs =
+                        ref.watch(messagesProvider(incident.id));
+                    final seen = ref.watch(
+                            chatSeenProvider)[incident.id] ??
+                        0;
+                    final unread =
+                        ((msgs.valueOrNull?.length ?? 0) - seen)
+                            .clamp(0, 99);
+                    return SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () =>
+                            showChatSheet(context, incident.id),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                          side: const BorderSide(
+                              color: AppColors.secondary),
+                          foregroundColor: AppColors.secondary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: chatIconWithBadge(unread),
+                        label: Text(
+                          unread > 0
+                              ? 'Chat ($unread new)'
+                              : 'Chat',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
               // Action button
               if (buttonLabel != null)
                 Padding(
