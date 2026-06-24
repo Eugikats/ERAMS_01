@@ -382,20 +382,23 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 15 — Ratings System [ ] Not started
+## Phase 15 — Ratings System [x] Complete
 
 ### Tasks
-- [ ] `lib/features/patient/trip_rating_screen.dart` — 5-star row + comment + Submit/Skip
-- [ ] `PatientService.submitRating()` — writes `trips.patient_rating` + `trips.patient_comment`
-- [ ] Postgres trigger `update_ambulance_rating` — recalculates `ambulances.rating` and `rating_count` on trips update
-- [ ] Update ambulance cards in patient home + picker: show filled stars + count
-- [ ] Update Admin Fleet tab: show rating badge on ambulance cards
+- [x] `supabase/migrations/20260624000012_rating_trigger.sql` — adds `patient_rating` / `patient_comment` columns to trips; `update_ambulance_rating_fn()` trigger recalculates `ambulances.rating` + `rating_count` on every rating update; `sync_trips_on_incident_close()` trigger mirrors incident completion/cancellation into the trips table; RLS policy allowing patients to update their own completed trip's rating
+- [x] `PatientService.submitRating(tripId, rating, comment?)` — UPDATE trips SET patient_rating + patient_comment
+- [x] `lib/features/patient/trip_rating_screen.dart` — interactive 5-star row, optional comment field, Submit (disabled until star selected) + Skip buttons; navigates to `/patient` on either action; invalidates `patientActiveIncidentProvider`
+- [x] `lib/features/patient/trip_tracking_screen.dart` — completion dialog's single "Done" button replaced with "Skip" (→ `/patient`) + "Rate Experience" (→ `/patient/rating` with `{tripId, ambulancePlate, driverName}` via route extra)
+- [x] `lib/app.dart` — `/patient/rating` route added (reads extra Map for tripId, ambulancePlate, driverName)
+- [x] Ambulance cards in patient home + picker already showed `★ X.X` rating chips (built in Phase 9); no changes needed
+- [x] Admin Fleet tab already showed rating inline on ambulance cards (built in Phase 9); no changes needed
 
 ### Needs Team Testing
-- Rating screen appears automatically after trip completion
-- Submitting a rating updates the ambulance's average immediately (visible in patient home map after refresh)
-- Skipping does not block patient from using the app again
-- Admin Fleet tab shows updated rating on the ambulance card
+- Rating screen appears automatically after dispatcher marks trip completed
+- Selecting 1–5 stars enables Submit; submitting navigates to `/patient` home
+- Skipping navigates directly to `/patient` without recording a rating
+- Submitting a rating → ambulance's star average updates immediately in patient home + picker cards (after refresh)
+- Admin Fleet tab shows updated rating count on ambulance card
 
 ---
 

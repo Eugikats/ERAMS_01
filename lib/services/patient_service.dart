@@ -110,6 +110,15 @@ class PatientService {
     return Incident.fromJson(incidentData);
   }
 
+  /// Records a patient rating (1–5 stars) for a completed trip.
+  Future<void> submitRating(
+      String tripId, int rating, String? comment) async {
+    await supabaseClient.from('trips').update({
+      'patient_rating': rating,
+      if (comment != null) 'patient_comment': comment,
+    }).eq('id', tripId);
+  }
+
   /// Fetches the active trip for [incidentId] along with the driver's profile.
   /// Returns null when no qualifying trip exists.
   Future<({Trip trip, String driverName, String driverPhone})?>

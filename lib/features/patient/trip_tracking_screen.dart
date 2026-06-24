@@ -262,9 +262,18 @@ class _TripTrackingScreenState extends ConsumerState<TripTrackingScreen> {
   // ── Completion dialog ───────────────────────────────────────────────────────
 
   void _showCompletionDialog(Incident incident) {
-    final tripData =
-        ref.read(tripWithDriverProvider(widget.incidentId));
-    final trip = tripData.valueOrNull?.trip;
+    final tripData = ref.read(tripWithDriverProvider(widget.incidentId));
+    final record = tripData.valueOrNull;
+    final trip = record?.trip;
+    final driverName = record?.driverName ?? '';
+
+    final ambulancePlate = trip?.ambulanceId != null
+        ? ref
+                .read(trackingAmbulanceProvider(trip!.ambulanceId!))
+                .valueOrNull
+                ?.plateNumber ??
+            ''
+        : '';
 
     Duration? duration;
     if (trip != null) {
@@ -278,10 +287,8 @@ class _TripTrackingScreenState extends ConsumerState<TripTrackingScreen> {
       builder: (ctx) => AlertDialog(
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        titlePadding:
-            const EdgeInsets.fromLTRB(24, 28, 24, 0),
-        contentPadding:
-            const EdgeInsets.fromLTRB(24, 16, 24, 0),
+        titlePadding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
+        contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
         title: const Column(
           children: [
             Icon(Icons.check_circle_rounded,
@@ -321,25 +328,49 @@ class _TripTrackingScreenState extends ConsumerState<TripTrackingScreen> {
             const SizedBox(height: 8),
           ],
         ),
-        actionsAlignment: MainAxisAlignment.center,
-        actionsPadding:
-            const EdgeInsets.fromLTRB(24, 8, 24, 20),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
         actions: [
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              ref.invalidate(patientActiveIncidentProvider);
-              context.go('/patient');
-            },
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(180, 48),
-              backgroundColor: AppColors.primary,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('Done',
-                style: TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w700)),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    ref.invalidate(patientActiveIncidentProvider);
+                    context.go('/patient');
+                  },
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Skip'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    ref.invalidate(patientActiveIncidentProvider);
+                    context.go('/patient/rating', extra: {
+                      'tripId': trip?.id ?? '',
+                      'ambulancePlate': ambulancePlate,
+                      'driverName': driverName,
+                    });
+                  },
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Rate Experience',
+                      style: TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
           ),
         ],
       ),

@@ -13,6 +13,7 @@ import 'features/hospital/hospital_screen.dart';
 import 'features/patient/ambulance_picker_screen.dart';
 import 'features/patient/new_request_form.dart';
 import 'features/patient/patient_home_screen.dart';
+import 'features/patient/trip_rating_screen.dart';
 import 'features/patient/trip_tracking_screen.dart';
 import 'services/supabase_service.dart';
 
@@ -113,6 +114,17 @@ final _router = GoRouter(
       builder: (_, state) => TripTrackingScreen(
         incidentId: state.pathParameters['incidentId']!,
       ),
+    ),
+    GoRoute(
+      path: '/patient/rating',
+      builder: (_, state) {
+        final extra = (state.extra as Map<String, dynamic>?) ?? {};
+        return TripRatingScreen(
+          tripId: extra['tripId'] as String? ?? '',
+          ambulancePlate: extra['ambulancePlate'] as String? ?? '',
+          driverName: extra['driverName'] as String? ?? '',
+        );
+      },
     ),
   ],
 );
