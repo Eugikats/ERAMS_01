@@ -318,19 +318,26 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 12 — Live Trip Tracking (Patient Side) [ ] Not started
+## Phase 12 — Live Trip Tracking (Patient Side) [x] Complete
 
 ### Tasks
-- [ ] `lib/features/patient/trip_tracking_screen.dart` — full-screen map, moving ambulance marker, ETA chip, status banner, driver info bottom sheet
-- [ ] GoRouter `/patient/tracking/:incidentId` route
-- [ ] `activeTrip​Provider` in `patient_provider.dart` — watches patient's active incident
-- [ ] Auto-dismiss tracking screen on `completed` status → show completion summary (response time, driver, fare)
+- [x] `lib/models/trip.dart` — Trip model (maps trips table: id, incident_id, ambulance_id, driver_id, status, fares, timestamps)
+- [x] `lib/services/patient_service.dart` — `fetchTripWithDriver(incidentId)` joins trip row with driver's full_name/phone from profiles
+- [x] `lib/state/patient_provider.dart` — `ActiveIncidentNotifier` (FamilyAsyncNotifier) with Realtime subscription on incidents by id; `TrackingAmbulanceNotifier` (FamilyAsyncNotifier) with Realtime subscription on ambulances by id; `tripWithDriverProvider` (FutureProvider.family.autoDispose)
+- [x] `lib/features/patient/trip_tracking_screen.dart` — full-screen flutter_map with patient blue marker + moving ambulance marker + dashed polyline; status banner (colour-coded by incident status); bottom card showing plate, service type, ETA, distance, driver name, "Call" button, fare; on `completed` → completion dialog (duration, fare, payment method, Done button); on `cancelled` → snackbar + navigate to `/patient`; re-centre FAB; invalidates `tripWithDriverProvider` when driver accepts (to show driver name)
+- [x] `lib/app.dart` — `/patient/tracking/:incidentId` route added
+- [x] `lib/features/patient/ambulance_picker_screen.dart` — after `createPatientIncident`, navigates directly to `/patient/tracking/:incidentId` (bypasses home screen)
+- [x] `lib/features/patient/patient_home_screen.dart` — active trip banner is now tappable → pushes to `/patient/tracking/:incidentId`
 
 ### Needs Team Testing
-- After driver accepts, patient screen transitions to tracking map automatically
-- Ambulance marker moves as driver pushes GPS updates
-- ETA decreases in real time
-- On "Incident Complete" by driver, patient sees completion summary
+- Select ambulance → immediately lands on tracking screen (not home screen)
+- Status banner shows correct colour and message for each status (pending, dispatched, en_route, arrived)
+- Driver marker appears on map once ambulance has a GPS location; marker moves as driver pushes updates every 15 s
+- ETA and distance update as ambulance moves
+- When driver accepts, driver name and "Call" button appear in the bottom card
+- Tap "Call" → phone dialler opens with driver's number
+- Active trip banner on home screen is tappable → opens tracking screen
+- Driver advances status to "Incident Complete" → completion dialog appears automatically with duration and fare; tap "Done" → returns to home screen with no active-trip banner
 
 ---
 

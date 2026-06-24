@@ -1,5 +1,6 @@
 import '../models/ambulance.dart';
 import '../models/incident.dart';
+import '../models/trip.dart';
 import 'supabase_service.dart';
 
 class PatientService {
@@ -107,5 +108,39 @@ class PatientService {
 
     if (incidentData == null) return null;
     return Incident.fromJson(incidentData);
+  }
+
+  /// Fetches the active trip for [incidentId] along with the driver's profile.
+  /// Returns null when no qualifying trip exists.
+  Future<({Trip trip, String driverName, String driverPhone})?>
+      fetchTripWithDriver(String incidentId) async {
+    final tripData = await supabaseClient
+        .from('trips')
+        .select()
+        .eq('incident_id', incidentId)
+        .inFilter('status',
+            ['requested', 'accepted', 'en_route', 'arrived', 'completed'])
+        .order('requested_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    if (tripData == null) return null;
+    final trip = Trip.fromJson(tripData);
+
+    String driverName = '';
+    String driverPhone = '';
+    if (trip.driverId != null) {
+      try {
+        final profileData = await supabaseClient
+            .from('profiles')
+            .select('full_name, phone')
+            .eq('id', trip.driverId!)
+            .single();
+        driverName = profileData['full_name'] as String? ?? '';
+        driverPhone = profileData['phone'] as String? ?? '';
+      } catch (_) {}
+    }
+
+    return (trip: trip, driverName: driverName, driverPhone: driverPhone);
   }
 }

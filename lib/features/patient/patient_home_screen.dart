@@ -121,13 +121,17 @@ class _PatientHomeScreenState extends ConsumerState<PatientHomeScreen> {
             ),
           ),
 
-          // ── Active trip banner ────────────────────────────────────────────
+          // ── Active trip banner (tap → open tracking screen) ──────────────
           if (hasActiveTrip)
             Positioned(
               bottom: 90,
               left: 16,
               right: 16,
-              child: _ActiveTripBanner(incident: activeTrip),
+              child: GestureDetector(
+                onTap: () => context
+                    .push('/patient/tracking/${activeTrip.id}'),
+                child: _ActiveTripBanner(incident: activeTrip),
+              ),
             ),
 
           // ── Request button ────────────────────────────────────────────────

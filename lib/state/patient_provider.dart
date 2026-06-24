@@ -2,10 +2,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/ambulance.dart';
 import '../models/incident.dart';
+import '../models/trip.dart';
 import '../services/patient_service.dart';
+import '../services/supabase_service.dart';
 
 // ── Patient GPS location ──────────────────────────────────────────────────────
 
@@ -63,3 +66,122 @@ final patientActiveIncidentProvider =
     FutureProvider.autoDispose<Incident?>((ref) async {
   return PatientService().fetchActiveTrip();
 });
+
+// ── Realtime incident tracking (by incidentId) ────────────────────────────────
+
+class ActiveIncidentNotifier
+    extends FamilyAsyncNotifier<Incident?, String> {
+  RealtimeChannel? _channel;
+  late String _incidentId;
+
+  @override
+  Future<Incident?> build(String incidentId) async {
+    _incidentId = incidentId;
+    final data = await supabaseClient
+        .from('incidents')
+        .select()
+        .eq('id', _incidentId)
+        .maybeSingle();
+    _subscribeRealtime();
+    ref.onDispose(() => _channel?.unsubscribe());
+    return data != null ? Incident.fromJson(data) : null;
+  }
+
+  void _subscribeRealtime() {
+    _channel = supabaseClient
+        .channel('patient:incident:$_incidentId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'incidents',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: _incidentId,
+          ),
+          callback: (_) => _refresh(),
+        )
+        .subscribe();
+  }
+
+  Future<void> _refresh() async {
+    try {
+      final data = await supabaseClient
+          .from('incidents')
+          .select()
+          .eq('id', _incidentId)
+          .maybeSingle();
+      state = AsyncData(data != null ? Incident.fromJson(data) : null);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+    }
+  }
+}
+
+final activeIncidentProvider = AsyncNotifierProvider.family<
+    ActiveIncidentNotifier, Incident?, String>(
+  ActiveIncidentNotifier.new,
+);
+
+// ── Realtime ambulance location tracking (by ambulanceId) ─────────────────────
+
+class TrackingAmbulanceNotifier
+    extends FamilyAsyncNotifier<Ambulance?, String> {
+  RealtimeChannel? _channel;
+  late String _ambulanceId;
+
+  @override
+  Future<Ambulance?> build(String ambulanceId) async {
+    _ambulanceId = ambulanceId;
+    final data = await supabaseClient
+        .from('ambulances')
+        .select()
+        .eq('id', _ambulanceId)
+        .maybeSingle();
+    _subscribeRealtime();
+    ref.onDispose(() => _channel?.unsubscribe());
+    return data != null ? Ambulance.fromJson(data) : null;
+  }
+
+  void _subscribeRealtime() {
+    _channel = supabaseClient
+        .channel('patient:ambulance:$_ambulanceId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'ambulances',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: _ambulanceId,
+          ),
+          callback: (_) => _refresh(),
+        )
+        .subscribe();
+  }
+
+  Future<void> _refresh() async {
+    try {
+      final data = await supabaseClient
+          .from('ambulances')
+          .select()
+          .eq('id', _ambulanceId)
+          .maybeSingle();
+      state = AsyncData(data != null ? Ambulance.fromJson(data) : null);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+    }
+  }
+}
+
+final trackingAmbulanceProvider = AsyncNotifierProvider.family<
+    TrackingAmbulanceNotifier, Ambulance?, String>(
+  TrackingAmbulanceNotifier.new,
+);
+
+// ── Trip + driver info (one-time fetch for tracking screen) ───────────────────
+
+final tripWithDriverProvider = FutureProvider.family
+    .autoDispose<({Trip trip, String driverName, String driverPhone})?, String>(
+  (ref, incidentId) => PatientService().fetchTripWithDriver(incidentId),
+);

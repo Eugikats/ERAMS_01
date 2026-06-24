@@ -8,7 +8,6 @@ import 'package:latlong2/latlong.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/ambulance.dart';
 import '../../services/patient_service.dart';
-import '../../state/patient_provider.dart';
 
 class AmbulancePickerScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> formData;
@@ -30,7 +29,7 @@ class _AmbulancePickerScreenState
   Future<void> _select(Ambulance ambulance) async {
     setState(() => _selecting = ambulance.id);
     try {
-      await PatientService().createPatientIncident(
+      final incident = await PatientService().createPatientIncident(
         natureOfEmergency:     widget.formData['nature_of_emergency'] as String,
         patientConditionNotes: widget.formData['patient_condition_notes'] as String,
         latitude:              _lat,
@@ -39,18 +38,8 @@ class _AmbulancePickerScreenState
       );
 
       if (!mounted) return;
-      // Invalidate so the home screen refreshes the active trip banner
-      ref.invalidate(patientActiveIncidentProvider);
-
-      // Pop the full request flow back to the patient home screen
-      context.go('/patient');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Request sent — waiting for driver to accept…'),
-          backgroundColor: AppColors.statusPending,
-          duration: Duration(seconds: 4),
-        ),
-      );
+      // Go directly to live tracking — skip the home screen interim
+      context.go('/patient/tracking/${incident.id}');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

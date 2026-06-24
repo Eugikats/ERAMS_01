@@ -13,6 +13,7 @@ import 'features/hospital/hospital_screen.dart';
 import 'features/patient/ambulance_picker_screen.dart';
 import 'features/patient/new_request_form.dart';
 import 'features/patient/patient_home_screen.dart';
+import 'features/patient/trip_tracking_screen.dart';
 import 'services/supabase_service.dart';
 
 class EramsApp extends StatelessWidget {
@@ -106,6 +107,12 @@ final _router = GoRouter(
             (state.extra as Map<String, dynamic>?) ?? const {};
         return AmbulancePickerScreen(formData: data);
       },
+    ),
+    GoRoute(
+      path: '/patient/tracking/:incidentId',
+      builder: (_, state) => TripTrackingScreen(
+        incidentId: state.pathParameters['incidentId']!,
+      ),
     ),
   ],
 );
