@@ -258,20 +258,23 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 10 — Patient Registration, Login & Home Screen [ ] Not started
+## Phase 10 — Patient Registration, Login & Home Screen ✓ Complete
 
 ### Tasks
-- [ ] Patient registration form (`AuthService.registerPatient()`)
-- [ ] GoRouter `/patient` route + redirect for patient role
-- [ ] `lib/features/patient/patient_home_screen.dart` — map + nearby ambulance markers (numbered, green) + count chip + Request button
-- [ ] `lib/services/patient_service.dart` — `fetchNearbyAmbulances(lat, lng)` via PostGIS distance order
-- [ ] `lib/state/patient_provider.dart` — `nearbyAmbulancesProvider`, `patientLocationProvider`
-- [ ] Web GPS guard for patient screen
+- [x] Patient registration form (`AuthService.registerPatient()`) — full name, phone, email, password; upserts `profiles` row with `role = 'patient'`
+- [x] GoRouter `/patient` route + redirect for patient role — `UserRole.patient.routePath` returns `/patient`; login screen routes there on success
+- [x] `lib/features/patient/patient_home_screen.dart` — map centred on patient GPS; numbered markers (coloured by service type: BLS/ALS/ICU); count chip; marker tap → info card (service type, distance, fare estimate, rating); "Request Ambulance" button; profile icon; sign out
+- [x] `lib/services/patient_service.dart` — `fetchNearbyAmbulances(lat, lng)` via `nearby_ambulances` PostGIS RPC; alphabetical fallback
+- [x] `lib/state/patient_provider.dart` — `patientLocationProvider` (one-shot GPS fetch), `nearbyAmbulancesProvider` (auto-dispose FutureProvider)
+- [x] Web GPS guard — `kIsWeb` branch uses browser geolocation with 8-second timeout; falls back to Kampala centre
 
 ### Needs Team Testing
-- Register a new patient account; confirm it lands on patient home
-- Confirm ambulance markers appear on map centred on Kampala
-- Confirm each marker shows service type, distance, price, rating chip
+- Register a new patient account (`/patient/register`) and confirm it redirects to `/patient` home screen
+- Log in as an existing patient account and confirm the same redirect
+- Confirm ambulance markers appear on the map (numbered green pins) centred on the device's GPS location (or Kampala if permission denied)
+- Tap a marker — confirm the info card shows plate number, service type badge, distance, fare estimate, and star rating
+- Confirm the count chip updates correctly when ambulances are available or not
+- Tap "Request Ambulance" — currently navigates to `/patient/request` (Phase 11 screen — expected to 404 until Phase 11 is built)
 
 ### Bug Fix — Auth Email Link Routing (Email Confirmation + Password Recovery)
 - [x] **Root cause**: Flutter Web defaults to hash-based URL routing, and `go_router` was trying to parse Supabase's `#access_token=...&type=...` auth-link fragment as a navigation target — crashing with `GoException: no routes for location` on both signup-confirmation and password-recovery email links.
