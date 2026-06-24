@@ -18,7 +18,7 @@ class IncidentService {
     final data = await supabaseClient
         .from('incidents')
         .select()
-        .inFilter('status', ['logged', 'dispatched', 'en_route', 'arrived'])
+        .inFilter('status', ['logged', 'pending_acceptance', 'dispatched', 'en_route', 'arrived'])
         .order('created_at', ascending: false);
     return (data as List).map((e) => Incident.fromJson(e)).toList();
   }

@@ -30,15 +30,16 @@ class StatusBadge extends StatelessWidget {
   }
 
   String _label(String s) => switch (s) {
-        'logged' => 'LOGGED',
-        'dispatched' => 'DISPATCHED',
-        'en_route' => 'EN ROUTE',
-        'arrived' => 'ARRIVED',
-        'completed' => 'COMPLETED',
-        'cancelled' => 'CANCELLED',
-        'available' => 'AVAILABLE',
-        'busy' => 'BUSY',
-        'offline' => 'OFFLINE',
-        _ => s.toUpperCase(),
+        'logged'             => 'LOGGED',
+        'pending_acceptance' => 'PENDING',
+        'dispatched'         => 'DISPATCHED',
+        'en_route'           => 'EN ROUTE',
+        'arrived'            => 'ARRIVED',
+        'completed'          => 'COMPLETED',
+        'cancelled'          => 'CANCELLED',
+        'available'          => 'AVAILABLE',
+        'busy'               => 'BUSY',
+        'offline'            => 'OFFLINE',
+        _                    => s.toUpperCase(),
       };
 }

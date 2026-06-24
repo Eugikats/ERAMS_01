@@ -124,6 +124,23 @@ class DriverIncidentNotifier extends AsyncNotifier<Incident?> {
     }
   }
 
+  Future<void> acceptOffer() async {
+    final incident = state.valueOrNull;
+    if (incident == null) return;
+    await DriverService().acceptTrip(incident.id);
+    // Realtime subscription fires on incident update → _refresh() handles state
+  }
+
+  /// Declines the current job offer. After decline, the incident is
+  /// re-assigned to a different ambulance, so the Realtime filter on this
+  /// ambulance_id will no longer fire — we must refresh manually.
+  Future<void> declineOffer() async {
+    final incident = state.valueOrNull;
+    if (incident == null) return;
+    await DriverService().declineTrip(incident.id);
+    await _refresh();
+  }
+
   Future<void> advanceStatus() async {
     final incident = state.valueOrNull;
     if (incident == null) return;

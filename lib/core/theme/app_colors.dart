@@ -17,6 +17,7 @@ abstract final class AppColors {
 
   // Ambulance / incident status colours — used for badges and map markers
   static const Color statusAvailable = Color(0xFF2E7D32);   // green
+  static const Color statusPending = Color(0xFFF57F17);     // amber — awaiting driver acceptance
   static const Color statusDispatched = Color(0xFFE65100);  // deep orange
   static const Color statusEnRoute = Color(0xFF1565C0);     // blue
   static const Color statusArrived = Color(0xFF6A1B9A);     // purple
@@ -38,14 +39,15 @@ abstract final class AppColors {
 
   /// Returns the colour for a given ambulance or incident status string.
   static Color forStatus(String status) => switch (status) {
-    'available' => statusAvailable,
-    'dispatched' => statusDispatched,
-    'en_route' => statusEnRoute,
-    'arrived' => statusArrived,
+    'available'          => statusAvailable,
+    'pending_acceptance' => statusPending,
+    'dispatched'         => statusDispatched,
+    'en_route'           => statusEnRoute,
+    'arrived'            => statusArrived,
     'completed' || 'logged' => statusCompleted,
-    'cancelled' => statusCancelled,
-    'busy' => statusBusy,
-    'offline' => statusOffline,
-    _ => statusOffline,
+    'cancelled'          => statusCancelled,
+    'busy'               => statusBusy,
+    'offline'            => statusOffline,
+    _                    => statusOffline,
   };
 }

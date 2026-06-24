@@ -2,6 +2,7 @@ import '../core/utils/geo_utils.dart';
 
 enum IncidentStatus {
   logged,
+  pendingAcceptance,
   dispatched,
   enRoute,
   arrived,
@@ -9,31 +10,37 @@ enum IncidentStatus {
   cancelled;
 
   static IncidentStatus fromString(String value) => switch (value) {
-    'logged' => logged,
-    'dispatched' => dispatched,
-    'en_route' => enRoute,
-    'arrived' => arrived,
-    'completed' => completed,
-    'cancelled' => cancelled,
-    _ => logged,
+    'logged'              => logged,
+    'pending_acceptance'  => pendingAcceptance,
+    'dispatched'          => dispatched,
+    'en_route'            => enRoute,
+    'arrived'             => arrived,
+    'completed'           => completed,
+    'cancelled'           => cancelled,
+    _                     => logged,
   };
 
   String get dbValue => switch (this) {
-    enRoute => 'en_route',
-    _ => name,
+    pendingAcceptance => 'pending_acceptance',
+    enRoute           => 'en_route',
+    _                 => name,
   };
 
   String get label => switch (this) {
-    logged => 'Logged',
-    dispatched => 'Dispatched',
-    enRoute => 'En Route',
-    arrived => 'Arrived',
-    completed => 'Completed',
-    cancelled => 'Cancelled',
+    logged            => 'Logged',
+    pendingAcceptance => 'Pending',
+    dispatched        => 'Dispatched',
+    enRoute           => 'En Route',
+    arrived           => 'Arrived',
+    completed         => 'Completed',
+    cancelled         => 'Cancelled',
   };
 
-  bool get isActive =>
-      this == logged || this == dispatched || this == enRoute || this == arrived;
+  bool get isActive => this == logged ||
+      this == pendingAcceptance ||
+      this == dispatched ||
+      this == enRoute ||
+      this == arrived;
 }
 
 class Incident {
@@ -53,6 +60,7 @@ class Incident {
   final DateTime? dispatchedAt;
   final DateTime? arrivedAt;
   final DateTime? completedAt;
+  final String? photoUrl;
 
   const Incident({
     required this.id,
@@ -71,6 +79,7 @@ class Incident {
     this.dispatchedAt,
     this.arrivedAt,
     this.completedAt,
+    this.photoUrl,
   });
 
   factory Incident.fromJson(Map<String, dynamic> json) {
@@ -97,6 +106,7 @@ class Incident {
       completedAt: json['completed_at'] != null
           ? DateTime.parse(json['completed_at'] as String)
           : null,
+      photoUrl: json['photo_url'] as String?,
     );
   }
 }

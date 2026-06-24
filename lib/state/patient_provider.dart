@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../models/ambulance.dart';
+import '../models/incident.dart';
 import '../services/patient_service.dart';
 
 // ── Patient GPS location ──────────────────────────────────────────────────────
@@ -52,4 +53,13 @@ final nearbyAmbulancesProvider =
   final location = locationAsync.valueOrNull ?? _kampalaDefault;
   return PatientService()
       .fetchNearbyAmbulances(location.latitude, location.longitude);
+});
+
+// ── Patient's active trip/incident ───────────────────────────────────────────
+
+/// Returns the patient's current active incident (pending_acceptance →
+/// arrived), or null when they have no active trip.
+final patientActiveIncidentProvider =
+    FutureProvider.autoDispose<Incident?>((ref) async {
+  return PatientService().fetchActiveTrip();
 });

@@ -8,6 +8,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../models/ambulance.dart';
+import '../../models/incident.dart';
 import '../../services/auth_service.dart';
 import '../../state/patient_provider.dart';
 import '../../widgets/app_logo.dart';
@@ -28,6 +29,9 @@ class _PatientHomeScreenState extends ConsumerState<PatientHomeScreen> {
   Widget build(BuildContext context) {
     final locationAsync = ref.watch(patientLocationProvider);
     final ambulancesAsync = ref.watch(nearbyAmbulancesProvider);
+    final activeTripAsync = ref.watch(patientActiveIncidentProvider);
+    final activeTrip = activeTripAsync.valueOrNull;
+    final hasActiveTrip = activeTrip != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -117,17 +121,31 @@ class _PatientHomeScreenState extends ConsumerState<PatientHomeScreen> {
             ),
           ),
 
+          // ── Active trip banner ────────────────────────────────────────────
+          if (hasActiveTrip)
+            Positioned(
+              bottom: 90,
+              left: 16,
+              right: 16,
+              child: _ActiveTripBanner(incident: activeTrip),
+            ),
+
           // ── Request button ────────────────────────────────────────────────
           Positioned(
             bottom: 24,
             left: 24,
             right: 24,
             child: FilledButton.icon(
-              onPressed: () => context.push('/patient/request'),
+              onPressed: hasActiveTrip
+                  ? null
+                  : () => context.push('/patient/request'),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),
                 backgroundColor: AppColors.error,
                 foregroundColor: Colors.white,
+                disabledBackgroundColor:
+                    AppColors.error.withValues(alpha: 0.4),
+                disabledForegroundColor: Colors.white70,
               ),
               icon: const Icon(Icons.emergency, size: 22),
               label: const Text(
@@ -416,6 +434,66 @@ class _Chip extends StatelessWidget {
       child: Text(label,
           style: TextStyle(
               fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+    );
+  }
+}
+
+// ── Active trip status banner ─────────────────────────────────────────────────
+
+class _ActiveTripBanner extends StatelessWidget {
+  final Incident incident;
+  const _ActiveTripBanner({required this.incident});
+
+  @override
+  Widget build(BuildContext context) {
+    final isPending =
+        incident.status == IncidentStatus.pendingAcceptance;
+    final color =
+        isPending ? AppColors.statusPending : AppColors.statusEnRoute;
+    final message = switch (incident.status) {
+      IncidentStatus.pendingAcceptance =>
+        'Waiting for driver to accept your request…',
+      IncidentStatus.dispatched => 'Ambulance dispatched — on the way!',
+      IncidentStatus.enRoute    => 'Ambulance is en route to you',
+      IncidentStatus.arrived    => 'Ambulance has arrived',
+      _                         => 'Active trip in progress',
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isPending
+                ? Icons.access_time_rounded
+                : Icons.airport_shuttle_outlined,
+            color: Colors.white,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

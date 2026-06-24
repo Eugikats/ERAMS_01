@@ -21,12 +21,20 @@ class DriverService {
         .from('incidents')
         .select()
         .eq('assigned_ambulance_id', ambulanceId)
-        .inFilter('status', ['dispatched', 'en_route', 'arrived'])
-        .order('dispatched_at', ascending: false)
+        .inFilter('status', ['pending_acceptance', 'dispatched', 'en_route', 'arrived'])
+        .order('created_at', ascending: false)
         .limit(1)
         .maybeSingle();
     if (data == null) return null;
     return Incident.fromJson(data);
+  }
+
+  Future<void> acceptTrip(String incidentId) async {
+    await supabaseClient.rpc('accept_trip', params: {'p_incident_id': incidentId});
+  }
+
+  Future<void> declineTrip(String incidentId) async {
+    await supabaseClient.rpc('decline_trip', params: {'p_incident_id': incidentId});
   }
 
   Future<Hospital?> fetchHospital(String hospitalId) async {

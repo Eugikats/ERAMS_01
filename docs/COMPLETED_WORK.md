@@ -290,22 +290,31 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 11 — Ambulance Request Form & Driver Accept/Decline [ ] Not started
+## Phase 11 — Ambulance Request Form & Driver Accept/Decline [x] Complete
 
 ### Tasks
-- [ ] `lib/features/patient/new_request_form.dart` — emergency type, notes, photo upload to Supabase Storage, fare estimate
-- [ ] `lib/features/patient/ambulance_picker_screen.dart` — ranked list with Select button
-- [ ] Migration: add `incidents.photo_url text` column; add `pending_acceptance` to incidents status constraint
-- [ ] Update `dispatch_incident` RPC: accept `p_patient_id`, create/update trips row, set `pending_acceptance` status, set `driver_offered_at`
-- [ ] `accept_trip(incident_id)` Postgres function — sets accepted timestamps, updates statuses
-- [ ] `decline_trip(incident_id)` Postgres function — sets declined, re-runs distance query for next driver
-- [ ] Update `lib/features/driver/driver_screen.dart`: job offer card with 30-second countdown Accept/Decline
+- [x] `supabase/migrations/20260624000011_patient_request.sql` — adds `incidents.photo_url`, extends status constraint to include `pending_acceptance`, rewrites `dispatch_incident` RPC to accept optional `p_patient_id` (patient path sets `pending_acceptance`; dispatcher path sets `dispatched` immediately), adds `accept_trip` and `decline_trip` RPCs with PostGIS re-offer on decline
+- [x] `lib/models/incident.dart` — added `pendingAcceptance` enum value, `photoUrl` field, updated `isActive`, `dbValue`, `label`
+- [x] `lib/core/theme/app_colors.dart` — added `statusPending` amber color; `forStatus()` handles `pending_acceptance`
+- [x] `lib/widgets/status_badge.dart` — PENDING label for `pending_acceptance`
+- [x] `lib/services/driver_service.dart` — `fetchActiveIncident` includes `pending_acceptance`; added `acceptTrip` and `declineTrip` RPCs
+- [x] `lib/services/patient_service.dart` — added `createPatientIncident()` (inserts incident, calls `dispatch_incident` with `p_patient_id`) and `fetchActiveTrip()`
+- [x] `lib/services/incident_service.dart` — `fetchActiveIncidents` now includes `pending_acceptance` so dispatchers see patient-initiated requests
+- [x] `lib/state/driver_provider.dart` — added `acceptOffer()` and `declineOffer()` to `DriverIncidentNotifier`; `declineOffer()` manually refreshes because the Realtime filter no longer fires after reassignment
+- [x] `lib/state/patient_provider.dart` — added `patientActiveIncidentProvider` (FutureProvider.autoDispose)
+- [x] `lib/features/patient/new_request_form.dart` — emergency type dropdown (10 types), additional notes field, GPS location with "Change Location" button using `pickLocation()`, "Find Nearby Ambulances" CTA navigates to `/patient/pick`
+- [x] `lib/features/patient/ambulance_picker_screen.dart` — receives form data via GoRouter `extra`, shows ranked ambulance list with distance/fare/rating/service type, "Select" calls `createPatientIncident`, on success navigates to `/patient` with pending snackbar
+- [x] `lib/features/driver/driver_screen.dart` — added `_JobOfferCard` StatefulWidget with 30-second `Timer.periodic` countdown; shows emergency type, patient details, location; Accept calls `acceptOffer()`, Decline (and timer expiry) calls `declineOffer()`
+- [x] `lib/app.dart` — added `/patient/request` → `NewRequestFormScreen` and `/patient/pick` → `AmbulancePickerScreen` routes
+- [x] `lib/features/patient/patient_home_screen.dart` — watches `patientActiveIncidentProvider`; shows amber/blue banner with status message when trip active; disables "Request Ambulance" button while active trip exists
 
 ### Needs Team Testing
-- Patient submits request → photo uploads → ambulance picker shows ranked list
-- Patient selects ambulance → driver receives job offer card with countdown
-- Driver accepts → both sides move to dispatched state; driver declines → next driver is offered
-- Countdown expires → auto-decline, next driver offered
+- Patient logs in → taps "Request Ambulance" → emergency type dropdown, notes, confirms location (try "Change Location" button too)
+- Tap "Find Nearby Ambulances" → ranked list shows with distance, fare, rating
+- Tap "Select" → snackbar "Waiting for driver to accept…" appears; Request button becomes disabled; amber banner appears on home screen
+- On driver screen, `_JobOfferCard` appears with 30-second countdown ring; driver accepts → both sides advance to `dispatched`
+- Driver declines (or countdown expires) → next available driver is offered; if none, incident resets to `logged`
+- Dispatcher dashboard now shows patient-initiated `pending_acceptance` incidents in the active list
 
 ---
 

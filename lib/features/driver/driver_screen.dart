@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -186,9 +188,16 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
                     style:
                         const TextStyle(color: AppColors.error),
                   ),
-                  data: (incident) => incident == null
-                      ? const _StandingByCard()
-                      : _ActiveIncidentCard(incident: incident),
+                  data: (incident) {
+                    if (incident == null) {
+                      return const _StandingByCard();
+                    }
+                    if (incident.status ==
+                        IncidentStatus.pendingAcceptance) {
+                      return _JobOfferCard(incident: incident);
+                    }
+                    return _ActiveIncidentCard(incident: incident);
+                  },
                 ),
               ],
             ),
@@ -434,6 +443,250 @@ class _StatusButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Job offer card with 30-second countdown
+// ---------------------------------------------------------------------------
+
+class _JobOfferCard extends ConsumerStatefulWidget {
+  final Incident incident;
+  const _JobOfferCard({required this.incident});
+
+  @override
+  ConsumerState<_JobOfferCard> createState() => _JobOfferCardState();
+}
+
+class _JobOfferCardState extends ConsumerState<_JobOfferCard> {
+  static const _countdownSeconds = 30;
+  late int _secondsLeft;
+  Timer? _timer;
+  bool _acting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _secondsLeft = _countdownSeconds;
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      if (_secondsLeft <= 1) {
+        _timer?.cancel();
+        _decline(); // auto-decline on timeout
+      } else {
+        setState(() => _secondsLeft--);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _accept() async {
+    _timer?.cancel();
+    setState(() => _acting = true);
+    try {
+      await ref.read(driverIncidentProvider.notifier).acceptOffer();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to accept: $e')),
+        );
+        setState(() => _acting = false);
+      }
+    }
+  }
+
+  Future<void> _decline() async {
+    _timer?.cancel();
+    if (!mounted) return;
+    setState(() => _acting = true);
+    try {
+      await ref.read(driverIncidentProvider.notifier).declineOffer();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to decline: $e')),
+        );
+        setState(() => _acting = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final incident = widget.incident;
+    final progress = _secondsLeft / _countdownSeconds;
+    final urgentColor =
+        _secondsLeft <= 10 ? AppColors.error : AppColors.statusPending;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'NEW JOB OFFER',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.statusPending,
+                letterSpacing: 1,
+              ),
+            ),
+            const Spacer(),
+            // Countdown ring
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: CircularProgressIndicator(
+                    value: progress,
+                    strokeWidth: 3,
+                    backgroundColor: AppColors.divider,
+                    color: urgentColor,
+                  ),
+                ),
+                Text(
+                  '$_secondsLeft',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: urgentColor),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+                color: AppColors.statusPending.withValues(alpha: 0.35)),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.statusPending.withValues(alpha: 0.1),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color:
+                      AppColors.statusPending.withValues(alpha: 0.06),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.notification_important_outlined,
+                        color: AppColors.statusPending, size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        incident.natureOfEmergency.isEmpty
+                            ? 'Emergency'
+                            : incident.natureOfEmergency,
+                        style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Details
+              Padding(
+                padding:
+                    const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Column(
+                  children: [
+                    if (incident.reporterName.isNotEmpty)
+                      _DetailRow(
+                        Icons.person_outline,
+                        incident.reporterPhone.isEmpty
+                            ? incident.reporterName
+                            : '${incident.reporterName}  ·  ${incident.reporterPhone}',
+                      ),
+                    if (incident.patientConditionNotes.isNotEmpty)
+                      _DetailRow(
+                        Icons.medical_information_outlined,
+                        incident.patientConditionNotes,
+                        highlight: true,
+                      ),
+                    if (incident.latitude != null)
+                      _DetailRow(
+                        Icons.place_outlined,
+                        '${incident.latitude!.toStringAsFixed(4)}, '
+                            '${incident.longitude!.toStringAsFixed(4)}',
+                      ),
+                  ],
+                ),
+              ),
+              // Buttons
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _acting ? null : _decline,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                          side: const BorderSide(color: AppColors.error),
+                          foregroundColor: AppColors.error,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Decline',
+                            style:
+                                TextStyle(fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: _acting ? null : _accept,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.statusAvailable,
+                          minimumSize: const Size(0, 48),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: _acting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white),
+                              )
+                            : const Text('Accept',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

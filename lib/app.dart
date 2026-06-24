@@ -10,6 +10,8 @@ import 'features/auth/patient_register_screen.dart';
 import 'features/dispatcher/dispatcher_dashboard.dart';
 import 'features/driver/driver_screen.dart';
 import 'features/hospital/hospital_screen.dart';
+import 'features/patient/ambulance_picker_screen.dart';
+import 'features/patient/new_request_form.dart';
 import 'features/patient/patient_home_screen.dart';
 import 'services/supabase_service.dart';
 
@@ -92,6 +94,18 @@ final _router = GoRouter(
     GoRoute(
       path: '/patient/register',
       builder: (_, __) => const PatientRegisterScreen(),
+    ),
+    GoRoute(
+      path: '/patient/request',
+      builder: (_, __) => const NewRequestFormScreen(),
+    ),
+    GoRoute(
+      path: '/patient/pick',
+      builder: (_, state) {
+        final data =
+            (state.extra as Map<String, dynamic>?) ?? const {};
+        return AmbulancePickerScreen(formData: data);
+      },
     ),
   ],
 );
