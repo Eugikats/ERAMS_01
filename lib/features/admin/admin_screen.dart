@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../services/admin_service.dart';
 import '../../models/ambulance.dart';
 import '../../models/hospital.dart';
 import '../../models/profile.dart';
@@ -1847,7 +1849,7 @@ class _AnalyticsTab extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // KPI row
+            // KPI row 1: Total Incidents, Avg Response
             Row(
               children: [
                 Expanded(
@@ -1869,7 +1871,54 @@ class _AnalyticsTab extends ConsumerWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
+            // KPI row 2: Calls Today, Completion Rate
+            Row(
+              children: [
+                Expanded(
+                  child: _KpiCard(
+                    label: 'Calls Today',
+                    value: '${a.callsToday}',
+                    icon: Icons.today_outlined,
+                    color: AppColors.statusCompleted,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _KpiCard(
+                    label: 'Completion Rate',
+                    value: a.completionRateFormatted,
+                    icon: Icons.check_circle_outline,
+                    color: AppColors.statusAvailable,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Export actions
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _showCsvDialog(context),
+                  icon: const Icon(Icons.download_outlined, size: 18),
+                  label: const Text('Download CSV'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: () => _showDhis2Dialog(context),
+                  icon: const Icon(Icons.upload_outlined, size: 18),
+                  label: const Text('Export to DHIS2'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Fleet utilisation donut
+            _ChartCard(
+              title: 'Fleet Utilisation',
+              child: _DonutChart(a.fleetStatusCounts),
+            ),
+            const SizedBox(height: 16),
             // Incidents by status
             _ChartCard(
               title: 'Incidents by Status',
@@ -1896,6 +1945,26 @@ class _AnalyticsTab extends ConsumerWidget {
                       data: a.countByHospital,
                       colorFor: (_) => AppColors.secondary,
                     ),
+            ),
+            const SizedBox(height: 16),
+            // Calls by emergency type
+            _ChartCard(
+              title: 'Calls by Emergency Type',
+              child: a.countByEmergencyType.isEmpty
+                  ? const _EmptyState(
+                      icon: Icons.medical_services_outlined,
+                      message: 'No emergency type data yet.',
+                    )
+                  : _BarChart(
+                      data: a.countByEmergencyType,
+                      colorFor: (_) => AppColors.statusEnRoute,
+                    ),
+            ),
+            const SizedBox(height: 16),
+            // Response time (last 10 calls)
+            _ChartCard(
+              title: 'Response Time — Last 10 Calls (min)',
+              child: _ResponseTimeChart(a.recentResponseTimes),
             ),
             const SizedBox(height: 16),
             // Status breakdown table
@@ -1930,8 +1999,7 @@ class _AnalyticsTab extends ConsumerWidget {
                             child: Text(
                               '${e.value}',
                               style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13),
+                                  fontWeight: FontWeight.w700, fontSize: 13),
                               textAlign: TextAlign.right,
                             ),
                           ),
@@ -1947,6 +2015,20 @@ class _AnalyticsTab extends ConsumerWidget {
       ),
     );
   }
+}
+
+void _showCsvDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (_) => const _CsvDialog(),
+  );
+}
+
+void _showDhis2Dialog(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (_) => const _Dhis2ExportDialog(),
+  );
 }
 
 class _KpiCard extends StatelessWidget {
@@ -2071,6 +2153,463 @@ class _BarChart extends StatelessWidget {
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+// ── Fleet utilisation donut (fl_chart PieChart) ───────────────────────────────
+
+class _DonutChart extends StatelessWidget {
+  final Map<String, int> counts;
+
+  const _DonutChart(this.counts);
+
+  @override
+  Widget build(BuildContext context) {
+    if (counts.isEmpty) {
+      return const _EmptyState(
+          icon: Icons.donut_large, message: 'No fleet data yet.');
+    }
+    final total = counts.values.fold(0, (a, b) => a + b);
+    if (total == 0) {
+      return const _EmptyState(
+          icon: Icons.donut_large, message: 'No fleet data yet.');
+    }
+
+    final sections = counts.entries.map((e) {
+      return PieChartSectionData(
+        value: e.value.toDouble(),
+        color: AppColors.forStatus(e.key),
+        title: '',
+        radius: 42,
+      );
+    }).toList();
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 160,
+          child: PieChart(
+            PieChartData(
+              sections: sections,
+              centerSpaceRadius: 50,
+              sectionsSpace: 2,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 16,
+          runSpacing: 6,
+          alignment: WrapAlignment.center,
+          children: counts.entries.map((e) {
+            final pct = (e.value / total * 100).round();
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: AppColors.forStatus(e.key),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${e.key} $pct% (${e.value})',
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary),
+                ),
+              ],
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Response time bar chart (last 10 calls) ───────────────────────────────────
+
+class _ResponseTimeChart extends StatelessWidget {
+  final List<({String label, double minutes})> data;
+
+  const _ResponseTimeChart(this.data);
+
+  @override
+  Widget build(BuildContext context) {
+    if (data.isEmpty) {
+      return const _EmptyState(
+          icon: Icons.timer, message: 'No response time data yet.');
+    }
+    final maxMin = data.fold(0.0, (m, e) => e.minutes > m ? e.minutes : m);
+    if (maxMin == 0) return const SizedBox.shrink();
+
+    return Column(
+      children: data.map((e) {
+        final frac = e.minutes / maxMin;
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 110,
+                child: Text(
+                  e.label,
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: frac,
+                    minHeight: 18,
+                    backgroundColor: AppColors.divider,
+                    color: AppColors.statusDispatched,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 46,
+                child: Text(
+                  '${e.minutes.toStringAsFixed(1)}m',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 13),
+                  textAlign: TextAlign.right,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+// ── CSV export dialog ─────────────────────────────────────────────────────────
+
+class _CsvDialog extends StatefulWidget {
+  const _CsvDialog();
+
+  @override
+  State<_CsvDialog> createState() => _CsvDialogState();
+}
+
+class _CsvDialogState extends State<_CsvDialog> {
+  List<PatientRecord>? _records;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    try {
+      final records = await AdminService().fetchAllPatientRecords();
+      if (mounted) setState(() => _records = records);
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
+  }
+
+  String _csv() {
+    final buf = StringBuffer();
+    buf.writeln(
+        'ID,Patient,Phone,Emergency,Location,Status,Ambulance,Hospital,'
+        'Created,Dispatched,Arrived,Completed,Response Time');
+    for (final r in _records!) {
+      buf.writeln([
+        _cell(r.incidentId),
+        _cell(r.patientName),
+        _cell(r.patientPhone),
+        _cell(r.natureOfEmergency),
+        _cell(r.locationDescription),
+        _cell(r.status),
+        _cell(r.ambulancePlate ?? ''),
+        _cell(r.hospitalName ?? ''),
+        r.createdAt.toIso8601String(),
+        r.dispatchedAt?.toIso8601String() ?? '',
+        r.arrivedAt?.toIso8601String() ?? '',
+        r.completedAt?.toIso8601String() ?? '',
+        r.responseTime ?? '',
+      ].join(','));
+    }
+    return buf.toString();
+  }
+
+  static String _cell(String v) {
+    if (v.contains(',') || v.contains('"') || v.contains('\n')) {
+      return '"${v.replaceAll('"', '""')}"';
+    }
+    return v;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final csv = _records != null ? _csv() : null;
+    return AlertDialog(
+      title: const Text('Download Report'),
+      content: SizedBox(
+        width: 560,
+        height: 320,
+        child: _error != null
+            ? Center(child: Text('Error: $_error'))
+            : _records == null
+                ? const Center(child: CircularProgressIndicator())
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${_records!.length} records ready — copy CSV below:',
+                        style:
+                            const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          padding: const EdgeInsets.all(8),
+                          child: SingleChildScrollView(
+                            child: SelectableText(
+                              csv!,
+                              style: const TextStyle(
+                                  fontSize: 11, fontFamily: 'monospace'),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+        if (csv != null)
+          FilledButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: csv));
+              Navigator.of(context).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text('CSV copied to clipboard — paste into Excel or Sheets')),
+              );
+            },
+            icon: const Icon(Icons.copy, size: 18),
+            label: const Text('Copy to Clipboard'),
+          ),
+      ],
+    );
+  }
+}
+
+// ── DHIS2 export dialog ───────────────────────────────────────────────────────
+
+class _Dhis2ExportDialog extends StatefulWidget {
+  const _Dhis2ExportDialog();
+
+  @override
+  State<_Dhis2ExportDialog> createState() => _Dhis2ExportDialogState();
+}
+
+class _Dhis2ExportDialogState extends State<_Dhis2ExportDialog> {
+  final _serverCtrl = TextEditingController();
+  final _userCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  final _orgUnitCtrl = TextEditingController();
+  DateTime _from = DateTime.now().subtract(const Duration(days: 30));
+  DateTime _to = DateTime.now();
+  bool _loading = false;
+  String? _result;
+
+  @override
+  void dispose() {
+    _serverCtrl.dispose();
+    _userCtrl.dispose();
+    _passCtrl.dispose();
+    _orgUnitCtrl.dispose();
+    super.dispose();
+  }
+
+  String _fmtDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  Future<void> _export() async {
+    if (_serverCtrl.text.trim().isEmpty ||
+        _userCtrl.text.trim().isEmpty ||
+        _orgUnitCtrl.text.trim().isEmpty) {
+      setState(() => _result = 'Error: Server URL, username, and org unit are required.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _result = null;
+    });
+    try {
+      final res = await AdminService().exportToDhis2(
+        startDate: _fmtDate(_from),
+        endDate: _fmtDate(_to),
+        dhis2Url: _serverCtrl.text.trim(),
+        dhis2Username: _userCtrl.text.trim(),
+        dhis2Password: _passCtrl.text,
+        orgUnit: _orgUnitCtrl.text.trim(),
+      );
+      final status = res['status'] as String? ?? res['httpStatus'] as String? ?? 'OK';
+      if (mounted) setState(() { _loading = false; _result = 'Success: $status'; });
+    } catch (e) {
+      if (mounted) setState(() { _loading = false; _result = 'Error: $e'; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Export to DHIS2'),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _DatePickerRow(
+                label: 'From',
+                date: _from,
+                onChanged: (d) => setState(() => _from = d),
+              ),
+              const SizedBox(height: 8),
+              _DatePickerRow(
+                label: 'To',
+                date: _to,
+                onChanged: (d) => setState(() => _to = d),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _serverCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'DHIS2 Server URL',
+                  hintText: 'https://play.dhis2.org/40.3.0',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _userCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Username',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _passCtrl,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _orgUnitCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Org Unit UID',
+                  hintText: 'DiszpKrYNg8',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+              if (_result != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _result!,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: _result!.startsWith('Error')
+                        ? AppColors.error
+                        : AppColors.success,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _loading ? null : () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+        FilledButton(
+          onPressed: _loading ? null : _export,
+          child: _loading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Export'),
+        ),
+      ],
+    );
+  }
+}
+
+class _DatePickerRow extends StatelessWidget {
+  final String label;
+  final DateTime date;
+  final ValueChanged<DateTime> onChanged;
+
+  const _DatePickerRow({
+    required this.label,
+    required this.date,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fmt =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    return Row(
+      children: [
+        SizedBox(
+          width: 40,
+          child: Text(label,
+              style: const TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary)),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: OutlinedButton(
+            onPressed: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: date,
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now().add(const Duration(days: 1)),
+              );
+              if (picked != null) onChanged(picked);
+            },
+            child: Text(fmt),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -264,18 +264,23 @@ class AdminService {
   // ── Analytics ────────────────────────────────────────────────
 
   Future<AdminAnalytics> fetchAnalytics() async {
-    // Incident counts by status
-    final countData = await supabaseClient
+    // ── 1. All incident statuses + emergency types ────────────────────────────
+    final allIncData = await supabaseClient
         .from('incidents')
-        .select('status');
+        .select('status, nature_of_emergency');
 
     final counts = <String, int>{};
-    for (final row in countData as List) {
+    final byType = <String, int>{};
+    for (final row in allIncData as List) {
       final s = row['status'] as String;
       counts[s] = (counts[s] ?? 0) + 1;
+      final type = (row['nature_of_emergency'] as String?)?.trim();
+      if (type != null && type.isNotEmpty) {
+        byType[type] = (byType[type] ?? 0) + 1;
+      }
     }
 
-    // Average response time: created_at → arrived_at (seconds)
+    // ── 2. Average response time: created_at → arrived_at ────────────────────
     final rtData = await supabaseClient
         .from('incidents')
         .select('created_at, arrived_at')
@@ -291,7 +296,7 @@ class AdminService {
       avgResponseSec = total / rtData.length;
     }
 
-    // Incidents by hospital
+    // ── 3. Incidents by hospital ──────────────────────────────────────────────
     final hospData = await supabaseClient
         .from('incidents')
         .select('assigned_hospital_id, hospitals(name)');
@@ -304,12 +309,83 @@ class AdminService {
       byHospital[name] = (byHospital[name] ?? 0) + 1;
     }
 
+    // ── 4. Calls today ────────────────────────────────────────────────────────
+    final now = DateTime.now().toUtc();
+    final startOfToday = DateTime.utc(now.year, now.month, now.day);
+    final todayData = await supabaseClient
+        .from('incidents')
+        .select('id')
+        .gte('created_at', startOfToday.toIso8601String());
+    final callsToday = (todayData as List).length;
+
+    // ── 5. Last 10 response times ─────────────────────────────────────────────
+    final rt10Raw = await supabaseClient
+        .from('incidents')
+        .select('nature_of_emergency, created_at, arrived_at')
+        .not('arrived_at', 'is', null)
+        .order('arrived_at', ascending: false)
+        .limit(10);
+
+    final recentResponseTimes = <({String label, double minutes})>[];
+    for (final row in (rt10Raw as List).reversed) {
+      final created = DateTime.parse(row['created_at'] as String);
+      final arrived = DateTime.parse(row['arrived_at'] as String);
+      final mins = arrived.difference(created).inSeconds / 60.0;
+      final type =
+          (row['nature_of_emergency'] as String?)?.trim() ?? 'Unknown';
+      final label = type.length > 14 ? '${type.substring(0, 12)}...' : type;
+      recentResponseTimes.add((label: label, minutes: mins));
+    }
+
+    // ── 6. Fleet status counts ────────────────────────────────────────────────
+    final fleetRaw = await supabaseClient.from('ambulances').select('status');
+    final fleetStatusCounts = <String, int>{};
+    for (final row in fleetRaw as List) {
+      final s = row['status'] as String;
+      fleetStatusCounts[s] = (fleetStatusCounts[s] ?? 0) + 1;
+    }
+
+    // ── Derived metrics ───────────────────────────────────────────────────────
+    final totalIncidents = counts.values.fold(0, (a, b) => a + b);
+    final completionRate = totalIncidents > 0
+        ? (counts['completed'] ?? 0) / totalIncidents
+        : 0.0;
+    final sortedTypes = byType.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
     return AdminAnalytics(
       countByStatus: counts,
       avgResponseSeconds: avgResponseSec,
       countByHospital: byHospital,
-      totalIncidents: counts.values.fold(0, (a, b) => a + b),
+      totalIncidents: totalIncidents,
+      callsToday: callsToday,
+      completionRate: completionRate,
+      countByEmergencyType: Map.fromEntries(sortedTypes.take(8)),
+      recentResponseTimes: recentResponseTimes,
+      fleetStatusCounts: fleetStatusCounts,
     );
+  }
+
+  Future<Map<String, dynamic>> exportToDhis2({
+    required String startDate,
+    required String endDate,
+    required String dhis2Url,
+    required String dhis2Username,
+    required String dhis2Password,
+    required String orgUnit,
+  }) async {
+    final res = await supabaseClient.functions.invoke(
+      'export_to_dhis2',
+      body: {
+        'startDate': startDate,
+        'endDate': endDate,
+        'dhis2Url': dhis2Url,
+        'dhis2Username': dhis2Username,
+        'dhis2Password': dhis2Password,
+        'orgUnit': orgUnit,
+      },
+    );
+    return (res.data as Map<String, dynamic>?) ?? {};
   }
 }
 
@@ -383,12 +459,22 @@ class AdminAnalytics {
   final double avgResponseSeconds;
   final Map<String, int> countByHospital;
   final int totalIncidents;
+  final int callsToday;
+  final double completionRate;
+  final Map<String, int> countByEmergencyType;
+  final List<({String label, double minutes})> recentResponseTimes;
+  final Map<String, int> fleetStatusCounts;
 
   const AdminAnalytics({
     required this.countByStatus,
     required this.avgResponseSeconds,
     required this.countByHospital,
     required this.totalIncidents,
+    required this.callsToday,
+    required this.completionRate,
+    required this.countByEmergencyType,
+    required this.recentResponseTimes,
+    required this.fleetStatusCounts,
   });
 
   String get avgResponseFormatted {
@@ -398,4 +484,7 @@ class AdminAnalytics {
     if (mins == 0) return '${secs}s';
     return '${mins}m ${secs}s';
   }
+
+  String get completionRateFormatted =>
+      '${(completionRate * 100).toStringAsFixed(0)}%';
 }

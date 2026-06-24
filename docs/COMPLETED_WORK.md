@@ -421,21 +421,23 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 17 — DHIS2 Export & Analytics Enhancements [ ] Not started
+## Phase 17 — DHIS2 Export & Analytics Enhancements [x] Complete
 
 ### Tasks
-- [ ] Edge Function `export_to_dhis2` — aggregate completed incidents → DHIS2 Data Value Sets API
-- [ ] "Export to DHIS2" button in Admin Analytics tab + date-range picker dialog
-- [ ] "Download Report" CSV button
-- [ ] Fleet utilisation donut chart
-- [ ] Calls today + completion rate KPI cards
-- [ ] Response time per call bar chart (last 10 incidents)
-- [ ] Calls by emergency type bar chart
+- [x] Edge Function `export_to_dhis2` — aggregate completed incidents → DHIS2 Data Value Sets API; accepts date range + DHIS2 credentials in request body
+- [x] "Export to DHIS2" button in Admin Analytics tab + date-range/credentials dialog
+- [x] "Download Report" CSV button — fetches all incidents, builds RFC-4180 CSV, copy-to-clipboard
+- [x] Fleet utilisation donut chart — `fl_chart` `PieChart` with ambulance status breakdown + legend
+- [x] Calls today + completion rate KPI cards (4 KPI cards total in Analytics tab)
+- [x] Response time per call bar chart (last 10 calls, oldest-to-newest, minutes)
+- [x] Calls by emergency type bar chart (top 8 types, sorted by count)
+- [x] `AdminAnalytics` extended with 5 new fields: `callsToday`, `completionRate`, `countByEmergencyType`, `recentResponseTimes`, `fleetStatusCounts`
 
 ### Needs Team Testing
-- Export to DHIS2 succeeds with valid credentials (or shows clear error with invalid ones)
-- CSV download contains correct incident data for the selected date range
-- Analytics tab visually matches the prototype Insights screen
+- Export to DHIS2 succeeds with valid DHIS2 credentials (or shows clear error with invalid ones)
+- CSV copy-to-clipboard delivers correct RFC-4180 data; paste into Excel/Sheets renders correctly
+- Analytics tab shows all 4 KPI cards, fleet donut, 5 charts, status breakdown table
+- Fleet donut colours match ambulance status colours used elsewhere in the app
 
 ---
 
