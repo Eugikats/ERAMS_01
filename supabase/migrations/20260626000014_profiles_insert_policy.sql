@@ -4,6 +4,6 @@
 -- write a profile row directly (e.g. trigger delay, manual recovery).
 -- Without this policy, upsert/insert on profiles returns 403 for all users.
 
-CREATE POLICY "profiles_insert_own"
+CREATE POLICY IF NOT EXISTS "profiles_insert_own"
 ON public.profiles FOR INSERT TO authenticated
 WITH CHECK (id = auth.uid());
