@@ -1,11 +1,15 @@
 -- Migration 013: In-app messaging between patient, driver, and dispatcher
+-- Replaces the trip-based messages table from migration 009.
+
+-- ── 0. Drop old schema from migration 009 ────────────────────────────────────
+DROP TABLE IF EXISTS public.messages;
 
 -- ── 1. Table ──────────────────────────────────────────────────────────────────
 
 CREATE TABLE public.messages (
     id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     incident_id uuid        NOT NULL REFERENCES public.incidents(id) ON DELETE CASCADE,
-    sender_id   uuid        NOT NULL REFERENCES auth.users(id),
+    sender_id   uuid        NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     sender_role text        NOT NULL DEFAULT '',
     sender_name text        NOT NULL DEFAULT '',
     body        text        NOT NULL,
