@@ -36,14 +36,18 @@ class AuthService {
     final userId = res.user?.id;
     if (userId == null) throw Exception('Registration failed — please try again.');
 
-    // Upsert profile in case the trigger created a partial row already
-    await supabaseClient.from('profiles').upsert({
-      'id': userId,
-      'full_name': fullName,
-      'phone': phone,
-      'email': email,
-      'role': 'patient',
-    });
+    // The handle_new_user trigger creates the profile row (SECURITY DEFINER,
+    // bypasses RLS). If email confirmation is disabled the session is live
+    // immediately, so we also UPDATE to ensure field values are in sync.
+    // We never INSERT here — there is no INSERT policy on profiles.
+    if (res.session != null) {
+      await supabaseClient.from('profiles').update({
+        'full_name': fullName,
+        'phone': phone,
+        'email': email,
+        'role': 'patient',
+      }).eq('id', userId);
+    }
   }
 
   Future<void> signOut() async {
