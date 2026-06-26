@@ -39,9 +39,23 @@ jobs:
             --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
 
       - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_ERAMS_98EB2 }}
-          channelId: live
-          projectId: erams-98eb2
+        run: |
+          # Write service account JSON to a temp file for authentication
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_ERAMS_98EB2 }}' > /tmp/sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json
+
+          # Deploy and capture output; tee to see it live in the log
+          npx firebase-tools@13 deploy --only hosting \
+            --project erams-98eb2 --non-interactive 2>&1 | tee /tmp/firebase_out.txt
+          EXIT=${PIPESTATUS[0]}
+
+          rm -f /tmp/sa.json
+
+          if [ $EXIT -ne 0 ]; then
+            if grep -q "is the current active version" /tmp/firebase_out.txt; then
+              echo "Site content unchanged — already up to date. Treating as success."
+              exit 0
+            fi
+            echo "::error::Firebase deploy failed (see output above)."
+            exit $EXIT
+          fi
