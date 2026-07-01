@@ -41,6 +41,10 @@ dependencies:
   # Charts (admin analytics)
   fl_chart: ^0.68.0
 
+  # Voice & video calls (Phase 18)
+  agora_rtc_engine: ^6.3.0
+  permission_handler: ^11.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

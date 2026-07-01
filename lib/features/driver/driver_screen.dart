@@ -15,6 +15,7 @@ import '../../state/auth_provider.dart';
 import '../../state/driver_provider.dart';
 import '../../state/message_provider.dart';
 import '../../widgets/app_logo.dart';
+import '../../widgets/call_screen.dart';
 import '../../widgets/chat_sheet.dart';
 import '../../widgets/incident_history_list.dart';
 import '../../widgets/profile_edit_sheet.dart';
@@ -964,6 +965,60 @@ class _ActiveIncidentCardState
                       ),
                     );
                   },
+                ),
+              ),
+              // Voice / video call buttons
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => pushCallScreen(
+                          context,
+                          incidentId: incident.id,
+                          isVideo: false,
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                          side: const BorderSide(
+                              color: AppColors.statusAvailable),
+                          foregroundColor: AppColors.statusAvailable,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(Icons.call_outlined, size: 18),
+                        label: const Text('Voice Call',
+                            style:
+                                TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => pushCallScreen(
+                          context,
+                          incidentId: incident.id,
+                          isVideo: true,
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                          side: const BorderSide(
+                              color: AppColors.statusEnRoute),
+                          foregroundColor: AppColors.statusEnRoute,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon:
+                            const Icon(Icons.videocam_outlined, size: 18),
+                        label: const Text('Video Call',
+                            style:
+                                TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               // Action button

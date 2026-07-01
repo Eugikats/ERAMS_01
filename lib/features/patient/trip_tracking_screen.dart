@@ -13,6 +13,7 @@ import '../../models/incident.dart';
 import '../../models/trip.dart';
 import '../../state/message_provider.dart';
 import '../../state/patient_provider.dart';
+import '../../widgets/call_screen.dart';
 import '../../widgets/chat_sheet.dart';
 
 class TripTrackingScreen extends ConsumerStatefulWidget {
@@ -138,6 +139,48 @@ class _TripTrackingScreenState extends ConsumerState<TripTrackingScreen> {
                 right: 16,
                 child: _StatusBanner(status: incident.status),
               ),
+
+              // ── Video call FAB ────────────────────────────────────────────
+              if (incident.status == IncidentStatus.dispatched ||
+                  incident.status == IncidentStatus.enRoute ||
+                  incident.status == IncidentStatus.arrived)
+                Positioned(
+                  bottom: 372,
+                  right: 16,
+                  child: FloatingActionButton.small(
+                    heroTag: 'video_call_tracking',
+                    tooltip: 'Video Call',
+                    backgroundColor: AppColors.statusEnRoute,
+                    foregroundColor: Colors.white,
+                    onPressed: () => pushCallScreen(
+                      context,
+                      incidentId: widget.incidentId,
+                      isVideo: true,
+                    ),
+                    child: const Icon(Icons.videocam_outlined),
+                  ),
+                ),
+
+              // ── Voice call FAB ────────────────────────────────────────────
+              if (incident.status == IncidentStatus.dispatched ||
+                  incident.status == IncidentStatus.enRoute ||
+                  incident.status == IncidentStatus.arrived)
+                Positioned(
+                  bottom: 318,
+                  right: 16,
+                  child: FloatingActionButton.small(
+                    heroTag: 'voice_call_tracking',
+                    tooltip: 'Voice Call',
+                    backgroundColor: AppColors.statusAvailable,
+                    foregroundColor: Colors.white,
+                    onPressed: () => pushCallScreen(
+                      context,
+                      incidentId: widget.incidentId,
+                      isVideo: false,
+                    ),
+                    child: const Icon(Icons.call_outlined),
+                  ),
+                ),
 
               // ── Chat FAB ─────────────────────────────────────────────────
               Positioned(

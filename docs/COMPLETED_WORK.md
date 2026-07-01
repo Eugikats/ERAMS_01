@@ -441,22 +441,34 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 18 — Voice & Video Calls (Agora) [ ] Not started
+## Phase 18 — Voice & Video Calls (Agora) [x] Complete
 
 ### Tasks
-- [ ] Agora project setup; `AGORA_APP_ID` in `.env` and Edge Function secrets
-- [ ] Edge Function `generate_agora_token`
-- [ ] `lib/widgets/call_screen.dart` — full call UI (video feed, mute, camera, speaker, end)
-- [ ] Voice + video call buttons on patient tracking screen and driver incident card
-- [ ] Android permissions: `RECORD_AUDIO`, `CAMERA` in AndroidManifest.xml
-- [ ] Web browser permission prompts
+- [x] Agora project setup; `AGORA_APP_ID` + `AGORA_APP_CERTIFICATE` in Supabase Edge Function secrets; `AGORA_APP_ID` passed via `--dart-define` at build time
+- [x] Edge Function `generate_agora_token` — implements Agora AccessToken2 builder (little-endian pack + HMAC-SHA256 + base64); falls back to null token (test mode) if `AGORA_APP_CERTIFICATE` is not set
+- [x] `lib/services/agora_service.dart` — conditional export: web → stub (no-op), native → full `agora_rtc_engine` implementation with callbacks, local/remote video view builders, mic/camera/speaker/flip controls
+- [x] `lib/widgets/call_screen.dart` — full call UI: permission request flow → connecting → waiting → in-call; remote video full-screen, local PiP corner; mute/video/speaker/flip/end controls; on web shows "use mobile app" message
+- [x] Voice + video call buttons on patient tracking screen (two FABs above chat FAB, shown only when dispatched/en_route/arrived)
+- [x] Voice + video call buttons on driver active incident card (row of two outlined buttons between Chat and advance-status)
+- [x] Android permissions: `RECORD_AUDIO`, `CAMERA`, `MODIFY_AUDIO_SETTINGS`, `BLUETOOTH`, `BLUETOOTH_CONNECT` in `AndroidManifest.xml`; `android.hardware.camera` and `android.hardware.microphone` features marked `required="false"`
+- [x] Web graceful degradation: web shows "Voice/video calling requires the ERAMS mobile app" instead of crashing
+
+### Setup Required (team action)
+1. Create an Agora project at console.agora.io — get App ID
+2. Add `AGORA_APP_ID` to Supabase project Edge Function secrets (`supabase secrets set AGORA_APP_ID=...`)
+3. Optionally add `AGORA_APP_CERTIFICATE` to secrets for production token generation; leave unset for Test Mode during demo
+4. Add `--dart-define=AGORA_APP_ID=your_app_id` to your run/build command (or `.env.json`)
+5. Deploy the Edge Function: `supabase functions deploy generate_agora_token`
 
 ### Needs Team Testing
-- Patient initiates voice call → driver receives it and can accept
-- Both sides can hear each other
-- Video call shows both camera feeds
-- Call ends cleanly and returns to trip tracking screen
-- Works on Android physical device + Chrome web
+- Log in as driver on Android physical device, accept a dispatched incident → "Voice Call" and "Video Call" buttons appear on the active incident card
+- Tap "Voice Call" → microphone permission dialog appears → call screen shows "Connecting…" → after other party joins, both sides can hear each other
+- Tap "Video Call" → camera + mic permission dialog → local video preview appears in PiP corner → remote video fills screen when patient joins
+- Patient opens tracking screen after driver accepts → green (voice) and blue (video) FABs appear above the chat FAB
+- Both parties can join the same channel (incidentId is the channel name) — call connects automatically
+- Mute button silences mic (icon changes); camera off hides local video; flip switches front/back camera; speaker toggle switches to earpiece
+- Tapping the end button (red) leaves the Agora channel and pops back to the previous screen
+- Web: tapping either call button shows "use the mobile app" message — no crash
 
 ---
 
