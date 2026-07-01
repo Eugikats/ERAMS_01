@@ -1,6 +1,7 @@
 import '../models/ambulance.dart';
 import '../models/hospital.dart';
 import '../models/incident.dart';
+import 'sms_service.dart';
 import 'supabase_service.dart';
 
 class DriverService {
@@ -31,10 +32,19 @@ class DriverService {
 
   Future<void> acceptTrip(String incidentId) async {
     await supabaseClient.rpc('accept_trip', params: {'p_incident_id': incidentId});
+    // Best-effort SMS fallbacks — never block the accept flow.
+    await SmsService().notifyPatientDriverAccepted(incidentId);
+    await SmsService().notifyHospitalIncomingPatient(incidentId);
   }
 
   Future<void> declineTrip(String incidentId) async {
-    await supabaseClient.rpc('decline_trip', params: {'p_incident_id': incidentId});
+    final result = await supabaseClient
+        .rpc('decline_trip', params: {'p_incident_id': incidentId});
+    final nextAmbulanceId =
+        result is Map ? result['next_ambulance_id'] as String? : null;
+    if (nextAmbulanceId != null) {
+      await SmsService().notifyDriverJobOffer(incidentId, nextAmbulanceId);
+    }
   }
 
   Future<Hospital?> fetchHospital(String hospitalId) async {
@@ -67,5 +77,8 @@ class DriverService {
       'p_incident_id': incidentId,
       'p_new_status': status,
     });
+    if (status == 'arrived') {
+      await SmsService().notifyPatientDriverArrived(incidentId);
+    }
   }
 }

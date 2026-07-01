@@ -1,6 +1,7 @@
 import '../models/ambulance.dart';
 import '../models/incident.dart';
 import '../models/trip.dart';
+import 'sms_service.dart';
 import 'supabase_service.dart';
 
 class PatientService {
@@ -70,6 +71,9 @@ class PatientService {
       'p_ambulance_id': ambulanceId,
       'p_patient_id':   userId,
     });
+
+    // Best-effort SMS fallback so the driver is alerted even if the app is closed.
+    await SmsService().notifyDriverJobOffer(incidentId, ambulanceId);
 
     // Return the updated incident (with pending_acceptance status)
     final updated = await supabaseClient

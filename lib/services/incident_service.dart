@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/incident.dart';
 import '../models/hospital.dart';
+import 'sms_service.dart';
 import 'supabase_service.dart';
 
 class DispatchException implements Exception {
@@ -68,6 +69,8 @@ class IncidentService {
     } on PostgrestException catch (e) {
       throw _parseDispatchError(e);
     }
+    // Best-effort SMS fallback — never block the dispatch flow.
+    await SmsService().notifyHospitalIncomingPatient(incidentId);
   }
 
   /// Manually assigns a specific [ambulanceId] to [incidentId],
@@ -82,6 +85,7 @@ class IncidentService {
     } on PostgrestException catch (e) {
       throw _parseDispatchError(e);
     }
+    await SmsService().notifyHospitalIncomingPatient(incidentId);
   }
 
   /// Transitions [incidentId] to [newStatus].

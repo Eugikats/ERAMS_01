@@ -404,20 +404,34 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 16 — SMS Notifications (Africa's Talking) [ ] Not started
+## Phase 16 — SMS Notifications (Africa's Talking) [x] Complete
 
 ### Tasks
-- [ ] Africa's Talking account setup; `AT_API_KEY` + `AT_USERNAME` in Edge Function secrets
-- [ ] Edge Function `send_sms` shared helper
-- [ ] SMS on driver job offer, patient driver-accepted, patient driver-arrived, hospital incoming patient
-- [ ] Phone number validation (+256 format) on patient registration
-- [ ] Graceful failure logging to `incident_events`
+- [x] Edge Function `supabase/functions/send_sms/index.ts` — shared Africa's Talking helper; normalizes phone numbers to `+2567XXXXXXXX`; reads `AT_API_KEY` + `AT_USERNAME` from Edge Function secrets (never exposed to the client); auto-switches to the AT sandbox endpoint when `AT_USERNAME=sandbox`; every failure path (missing credentials, invalid phone, AT rejection, network error) logs an `incident_events` row (`event_type='message'`, payload `{type:'sms_failed', reason}`) via the service-role client instead of throwing, so the caller's main flow is never blocked
+- [x] `lib/services/sms_service.dart` — `SmsService` with a generic `sendSms()` plus four event-specific methods that each resolve their own recipient/data from Supabase and are individually wrapped in try/catch (never throw): `notifyDriverJobOffer(incidentId, ambulanceId)`, `notifyPatientDriverAccepted(incidentId)`, `notifyPatientDriverArrived(incidentId)`, `notifyHospitalIncomingPatient(incidentId)`
+- [x] Wired into existing RPC call sites (no new UI needed):
+  - `PatientService.createPatientIncident()` → `notifyDriverJobOffer` after the initial `dispatch_incident` RPC
+  - `DriverService.declineTrip()` → captures `decline_trip`'s `next_ambulance_id` and re-fires `notifyDriverJobOffer` for the newly-offered driver
+  - `DriverService.acceptTrip()` → `notifyPatientDriverAccepted` + `notifyHospitalIncomingPatient` (covers the case where a patient-initiated trip has a hospital assigned)
+  - `DriverService.updateIncidentStatus()` → `notifyPatientDriverArrived` when the new status is `arrived` (fires for both patient- and dispatcher-initiated incidents, since `reporter_phone` is always populated)
+  - `IncidentService.dispatchIncident()` / `dispatchIncidentManual()` → `notifyHospitalIncomingPatient` after a successful dispatcher-initiated dispatch
+- [x] ETA for the hospital SMS reuses the same Haversine ÷ 40 km/h estimate as `hospital_screen.dart` (via `latlong2`'s `Distance`)
+- [x] Uganda phone validation on patient self-registration (`lib/features/auth/patient_register_screen.dart`): accepts `07XXXXXXXX`, `2567XXXXXXXX`, or `+2567XXXXXXXX`, normalizes to `+2567XXXXXXXX` before calling `registerPatient()`; rejects anything else with an inline form error
+
+### Setup Required (team action)
+1. Create an Africa's Talking account at africastalking.com (use the **Sandbox** app for free testing — no airtime cost — or a live app for production)
+2. Set Edge Function secrets: `supabase secrets set AT_API_KEY=your_api_key AT_USERNAME=your_username` (use `AT_USERNAME=sandbox` to hit the AT sandbox endpoint automatically)
+3. Deploy the function: `supabase functions deploy send_sms`
+4. No client-side `--dart-define` needed — SMS is entirely server-side (Edge Function + Flutter → Edge Function call)
 
 ### Needs Team Testing
-- Close the driver app; trigger a dispatch → driver receives SMS within 30 seconds
-- Patient receives SMS when driver accepts
-- Hospital staff receives SMS when patient is dispatched to their hospital
-- Invalid phone number rejected at registration
+- With `AT_USERNAME=sandbox` and a phone number registered in the AT sandbox simulator, patient submits a request → driver's registered number receives the job-offer SMS
+- Driver declines (or the 30s countdown expires) → the next nearest driver receives a fresh job-offer SMS
+- Driver accepts → patient's number receives the "driver accepted" SMS with ETA
+- Driver taps "I've Arrived" → reporter's number receives "Your ambulance has arrived"
+- Dispatcher dispatches an incident with a hospital assigned → hospital's `contact_phone` receives the incoming-patient SMS with ETA and condition notes
+- Leave `AT_API_KEY`/`AT_USERNAME` unset → confirm the app flow completes normally (dispatch/accept/decline/arrive all still work) and `incident_events` gets a `sms_failed` / `sms_not_configured` row instead of a crash
+- Register a new patient with an invalid phone (e.g. `123456`) → confirm the form blocks submission with a clear error; valid formats (`0712345678`, `+256712345678`, `256712345678`) are all accepted
 
 ---
 
@@ -512,7 +526,7 @@ The prototype's primary innovation is a **patient-initiated, ride-hailing ambula
 | **Mobile money payment** | `[ ]` Not started | Flutterwave SDK (MTN MoMo + Airtel Money) |
 | **Post-trip rating system** | `[ ]` Not started | 1–5 stars; updates `ambulances.rating` |
 | **Dispatcher ↔ driver messaging** | `[ ]` Not started | Shares same messages infra |
-| **SMS fallback notifications** | `[ ]` Not started | Africa's Talking Edge Function |
+| **SMS fallback notifications** | `[x]` Complete (Phase 16) | Africa's Talking Edge Function |
 | **DHIS2 export** (shown in prototype Insights tab) | `[ ]` Not started | "Export to DHIS2" button in Admin Analytics |
 
 Full implementation plan for the patient portal is in `ERAMS_TECHNICAL_BUILD_PLAN.md` **Phase 9** and **Section 11.2**.
@@ -541,4 +555,4 @@ These are **not blockers for the v1.0-demo of the dispatcher/driver/hospital/adm
 
 ---
 
-*Last updated: 21 June 2026 — Patients tab added to admin dashboard; Phases 0–8 code complete; remaining items are team actions (deploy, screenshots, tag v1.0-demo)*
+*Last updated: 1 July 2026 — Phase 16 (SMS notifications) implemented; Phases 0–8 code complete; remaining items are team actions (deploy, screenshots, tag v1.0-demo)*

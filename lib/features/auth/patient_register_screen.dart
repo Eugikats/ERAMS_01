@@ -23,6 +23,18 @@ class _PatientRegisterScreenState extends State<PatientRegisterScreen> {
   bool _isLoading = false;
   String? _error;
 
+  /// Matches Uganda mobile numbers in local (07XXXXXXXX), bare-country-code
+  /// (2567XXXXXXXX) or international (+2567XXXXXXXX) form, and normalizes
+  /// them to +2567XXXXXXXX for SMS delivery (Africa's Talking / Phase 16).
+  static final _ugPhonePattern = RegExp(r'^(?:\+?256|0)?7\d{8}$');
+
+  String? _normalizeUgandaPhone(String raw) {
+    final digits = raw.replaceAll(RegExp(r'[^\d+]'), '');
+    if (!_ugPhonePattern.hasMatch(digits)) return null;
+    final subscriber = digits.substring(digits.length - 9);
+    return '+256$subscriber';
+  }
+
   @override
   void dispose() {
     _nameCtrl.dispose();
@@ -44,7 +56,8 @@ class _PatientRegisterScreenState extends State<PatientRegisterScreen> {
         email: _emailCtrl.text.trim(),
         password: _passwordCtrl.text,
         fullName: _nameCtrl.text.trim(),
-        phone: _phoneCtrl.text.trim(),
+        phone: _normalizeUgandaPhone(_phoneCtrl.text.trim()) ??
+            _phoneCtrl.text.trim(),
       );
       if (!mounted) return;
       context.go('/patient');
@@ -131,9 +144,15 @@ class _PatientRegisterScreenState extends State<PatientRegisterScreen> {
                                 prefixIcon: Icon(Icons.phone_outlined),
                                 hintText: '+256 7XX XXX XXX',
                               ),
-                              validator: (v) => (v == null || v.trim().isEmpty)
-                                  ? 'Phone is required'
-                                  : null,
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return 'Phone is required';
+                                }
+                                if (_normalizeUgandaPhone(v.trim()) == null) {
+                                  return 'Enter a valid Uganda number, e.g. 07XXXXXXXX';
+                                }
+                                return null;
+                              },
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
