@@ -5,8 +5,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher.dart';
-
 import '../../core/theme/app_colors.dart';
 import '../../models/ambulance.dart';
 import '../../models/hospital.dart';
@@ -14,6 +12,7 @@ import '../../models/incident.dart';
 import '../../services/auth_service.dart';
 import '../../services/profile_service.dart';
 import '../../state/auth_provider.dart';
+import '../../state/dispatcher_provider.dart';
 import '../../state/driver_provider.dart';
 import '../../state/message_provider.dart';
 import '../../widgets/app_logo.dart';
@@ -145,67 +144,93 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
             );
           }
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _AmbulanceHeader(
+          final allIncidents =
+              ref.watch(incidentsNotifierProvider).valueOrNull ?? [];
+          final activeIncidents = allIncidents
+              .where((i) => i.status.isActive)
+              .toList();
+
+          return Column(
+            children: [
+              // ── Top half: live map ──────────────────────────────
+              Expanded(
+                flex: 1,
+                child: _DriverLiveMap(
                   ambulance: ambulance,
-                  driverName: profile?.fullName ?? '',
-                  gpsActive: gpsActive,
-                  onToggleGps: () async {
-                    if (gpsActive) {
-                      ref.read(gpsNotifierProvider.notifier).stopTracking();
-                    } else {
-                      await ref
-                          .read(gpsNotifierProvider.notifier)
-                          .startTracking();
-                    }
-                  },
+                  incidents: activeIncidents,
+                  assignedIncident: incidentAsync.valueOrNull,
                 ),
-                const SizedBox(height: 16),
-                _StatusToggle(
-                  current: ambulance.status,
-                  onChanged: (newStatus) async {
-                    await ref
-                        .read(driverAmbulanceProvider.notifier)
-                        .setStatus(newStatus);
-                    if (newStatus == 'offline') {
-                      ref.read(gpsNotifierProvider.notifier).stopTracking();
-                    } else if (!ref.read(gpsActiveProvider)) {
-                      await ref
-                          .read(gpsNotifierProvider.notifier)
-                          .startTracking();
-                    }
-                  },
-                ),
-                const SizedBox(height: 20),
-                incidentAsync.when(
-                  loading: () => const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(40),
-                      child: CircularProgressIndicator(),
-                    ),
+              ),
+              // ── Bottom half: header + card ──────────────────────
+              Expanded(
+                flex: 1,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _AmbulanceHeader(
+                        ambulance: ambulance,
+                        driverName: profile?.fullName ?? '',
+                        gpsActive: gpsActive,
+                        onToggleGps: () async {
+                          if (gpsActive) {
+                            ref
+                                .read(gpsNotifierProvider.notifier)
+                                .stopTracking();
+                          } else {
+                            await ref
+                                .read(gpsNotifierProvider.notifier)
+                                .startTracking();
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _StatusToggle(
+                        current: ambulance.status,
+                        onChanged: (newStatus) async {
+                          await ref
+                              .read(driverAmbulanceProvider.notifier)
+                              .setStatus(newStatus);
+                          if (newStatus == 'offline') {
+                            ref
+                                .read(gpsNotifierProvider.notifier)
+                                .stopTracking();
+                          } else if (!ref.read(gpsActiveProvider)) {
+                            await ref
+                                .read(gpsNotifierProvider.notifier)
+                                .startTracking();
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      incidentAsync.when(
+                        loading: () => const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(40),
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                        error: (e, _) => Text(
+                          'Error loading incident: $e',
+                          style: const TextStyle(color: AppColors.error),
+                        ),
+                        data: (incident) {
+                          if (incident == null) {
+                            return const _StandingByCard();
+                          }
+                          if (incident.status ==
+                              IncidentStatus.pendingAcceptance) {
+                            return _JobOfferCard(incident: incident);
+                          }
+                          return _ActiveIncidentCard(incident: incident);
+                        },
+                      ),
+                    ],
                   ),
-                  error: (e, _) => Text(
-                    'Error loading incident: $e',
-                    style:
-                        const TextStyle(color: AppColors.error),
-                  ),
-                  data: (incident) {
-                    if (incident == null) {
-                      return const _StandingByCard();
-                    }
-                    if (incident.status ==
-                        IncidentStatus.pendingAcceptance) {
-                      return _JobOfferCard(incident: incident);
-                    }
-                    return _ActiveIncidentCard(incident: incident);
-                  },
                 ),
-              ],
-            ),
+              ),
+            ],
           );
         },
       ),
@@ -641,21 +666,6 @@ class _JobOfferCardState extends ConsumerState<_JobOfferCard> {
                   ],
                 ),
               ),
-              // ── Map preview ───────────────────────────────────────
-              if (incident.latitude != null && incident.longitude != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: SizedBox(
-                      height: 200,
-                      child: _IncidentMapPreview(
-                        incidentLat: incident.latitude!,
-                        incidentLng: incident.longitude!,
-                      ),
-                    ),
-                  ),
-                ),
               // Buttons
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -773,19 +783,18 @@ class _ActiveIncidentCardState
     extends ConsumerState<_ActiveIncidentCard> {
   bool _advancing = false;
 
-  Future<void> _navigateToScene() async {
+  void _navigateToScene() {
     final lat = widget.incident.latitude;
     final lng = widget.incident.longitude;
     if (lat == null || lng == null) return;
-    final uri = Uri.parse(
-      'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving',
-    );
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open Google Maps')),
-        );
-      }
+    ref.read(_navTargetProvider.notifier).state = LatLng(lat, lng);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Navigating — map centred on patient location'),
+          duration: Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -919,23 +928,7 @@ class _ActiveIncidentCardState
                   ],
                 ),
               ),
-              // ── Live map ─────────────────────────────────────────
-              if (incident.latitude != null && incident.longitude != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: SizedBox(
-                      height: 260,
-                      child: _ActiveIncidentMap(
-                        incident: incident,
-                        hospital: hospitalAsync.valueOrNull,
-                        ambulance: ref.watch(driverAmbulanceProvider).valueOrNull,
-                      ),
-                    ),
-                  ),
-                ),
-              // Navigate to scene
+              // Navigate to scene (centres the in-app live map on patient)
               if (incident.latitude != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -951,7 +944,7 @@ class _ActiveIncidentCardState
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      icon: const Icon(Icons.navigation_outlined, size: 18),
+                      icon: const Icon(Icons.my_location, size: 18),
                       label: const Text(
                         'Navigate to Scene',
                         style: TextStyle(fontWeight: FontWeight.w600),
@@ -1095,233 +1088,179 @@ class _ActiveIncidentCardState
 }
 
 // ---------------------------------------------------------------------------
-// Map preview shown in the Job Offer card (patient location only)
+// Provider: navigation target set when driver taps "Navigate to Scene"
 // ---------------------------------------------------------------------------
 
-class _IncidentMapPreview extends StatelessWidget {
-  final double incidentLat;
-  final double incidentLng;
+final _navTargetProvider = StateProvider<LatLng?>((ref) => null);
 
-  const _IncidentMapPreview({
-    required this.incidentLat,
-    required this.incidentLng,
+// ---------------------------------------------------------------------------
+// Single live map — top half of the Active tab
+// Shows all active incidents, driver's ambulance, and assigned hospital
+// ---------------------------------------------------------------------------
+
+class _DriverLiveMap extends ConsumerStatefulWidget {
+  final Ambulance ambulance;
+  final List<Incident> incidents;
+  final Incident? assignedIncident;
+
+  const _DriverLiveMap({
+    required this.ambulance,
+    required this.incidents,
+    required this.assignedIncident,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final center = LatLng(incidentLat, incidentLng);
-    return Stack(
-      children: [
-        FlutterMap(
-          options: MapOptions(initialCenter: center, initialZoom: 14),
-          children: [
-            TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.erams.erams',
-            ),
-            MarkerLayer(
-              markers: [
-                Marker(
-                  point: center,
-                  width: 40,
-                  height: 48,
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.4),
-                              blurRadius: 8,
-                            ),
-                          ],
-                        ),
-                        child: const Icon(Icons.person_pin_circle,
-                            color: Colors.white, size: 20),
-                      ),
-                      Container(
-                          width: 2, height: 10, color: AppColors.primary),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        // Label
-        Positioned(
-          bottom: 6,
-          left: 8,
-          child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: const Text('Patient Location',
-                style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primary)),
-          ),
-        ),
-        // OSM attribution
-        Positioned(
-          bottom: 2,
-          right: 6,
-          child: Text('© OpenStreetMap',
-              style: TextStyle(
-                  fontSize: 9,
-                  color: Colors.black.withValues(alpha: 0.5))),
-        ),
-      ],
-    );
-  }
+  ConsumerState<_DriverLiveMap> createState() => _DriverLiveMapState();
 }
 
-// ---------------------------------------------------------------------------
-// Live map shown in the Active Incident card (patient + hospital + driver)
-// ---------------------------------------------------------------------------
-
-class _ActiveIncidentMap extends StatelessWidget {
-  final Incident incident;
-  final Hospital? hospital;
-  final Ambulance? ambulance;
-
-  const _ActiveIncidentMap({
-    required this.incident,
-    required this.hospital,
-    required this.ambulance,
-  });
+class _DriverLiveMapState extends ConsumerState<_DriverLiveMap> {
+  final _mapController = MapController();
 
   @override
   Widget build(BuildContext context) {
-    final patientLat = incident.latitude!;
-    final patientLng = incident.longitude!;
-    final hospitalLat = hospital?.latitude;
-    final hospitalLng = hospital?.longitude;
-    final driverLat = ambulance?.latitude;
-    final driverLng = ambulance?.longitude;
+    final navTarget = ref.watch(_navTargetProvider);
+    final ambulance = widget.ambulance;
+    final driverLat = ambulance.latitude;
+    final driverLng = ambulance.longitude;
 
-    // Compute a center that includes all available points
-    final lats = [
-      patientLat,
-      if (hospitalLat != null) hospitalLat,
-      if (driverLat != null) driverLat,
-    ];
-    final lngs = [
-      patientLng,
-      if (hospitalLng != null) hospitalLng,
-      if (driverLng != null) driverLng,
-    ];
-    final centerLat =
-        lats.reduce((a, b) => a + b) / lats.length;
-    final centerLng =
-        lngs.reduce((a, b) => a + b) / lngs.length;
+    // When navigate-to-scene is tapped, move map to patient
+    ref.listen(_navTargetProvider, (_, next) {
+      if (next != null) {
+        _mapController.move(next, 15);
+      }
+    });
 
-    final markers = <Marker>[
-      // Patient / incident pin
-      Marker(
-        point: LatLng(patientLat, patientLng),
-        width: 40,
-        height: 48,
+    final hospitalAsync = widget.assignedIncident?.assignedHospitalId != null
+        ? ref.watch(
+            hospitalByIdProvider(widget.assignedIncident!.assignedHospitalId!))
+        : const AsyncData<Hospital?>(null);
+    final hospital = hospitalAsync.valueOrNull;
+
+    // Build markers
+    final markers = <Marker>[];
+
+    // All active incident pins
+    for (final inc in widget.incidents) {
+      final lat = inc.latitude;
+      final lng = inc.longitude;
+      if (lat == null || lng == null) continue;
+      final isAssigned = inc.id == widget.assignedIncident?.id;
+      markers.add(Marker(
+        point: LatLng(lat, lng),
+        width: 44,
+        height: 52,
         child: Tooltip(
-          message: incident.locationDescription.isEmpty
-              ? 'Patient'
-              : incident.locationDescription,
+          message: inc.locationDescription.isEmpty
+              ? inc.natureOfEmergency
+              : inc.locationDescription,
           child: Column(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: isAssigned ? 40 : 32,
+                height: isAssigned ? 40 : 32,
                 decoration: BoxDecoration(
-                  color: AppColors.primary,
+                  color: isAssigned ? AppColors.primary : AppColors.error,
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 2),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.4),
+                      color: (isAssigned ? AppColors.primary : AppColors.error)
+                          .withValues(alpha: 0.4),
                       blurRadius: 8,
                     ),
                   ],
                 ),
-                child: const Icon(Icons.person_pin_circle,
-                    color: Colors.white, size: 20),
+                child: Icon(
+                  isAssigned
+                      ? Icons.person_pin_circle
+                      : Icons.emergency_outlined,
+                  color: Colors.white,
+                  size: isAssigned ? 22 : 16,
+                ),
               ),
-              Container(width: 2, height: 10, color: AppColors.primary),
+              Container(
+                  width: 2,
+                  height: 10,
+                  color: isAssigned ? AppColors.primary : AppColors.error),
             ],
           ),
         ),
-      ),
-      // Hospital pin
-      if (hospitalLat != null && hospitalLng != null)
-        Marker(
-          point: LatLng(hospitalLat, hospitalLng),
-          width: 40,
-          height: 40,
-          child: Tooltip(
-            message: hospital!.name,
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppColors.secondary,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 4,
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.local_hospital,
-                  color: Colors.white, size: 20),
+      ));
+    }
+
+    // Hospital pin (assigned hospital only)
+    if (hospital != null &&
+        hospital.latitude != null &&
+        hospital.longitude != null) {
+      markers.add(Marker(
+        point: LatLng(hospital.latitude!, hospital.longitude!),
+        width: 40,
+        height: 40,
+        child: Tooltip(
+          message: hospital.name,
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.secondary,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2), blurRadius: 4),
+              ],
             ),
+            child: const Icon(Icons.local_hospital,
+                color: Colors.white, size: 20),
           ),
         ),
-      // Driver / ambulance pin
-      if (driverLat != null && driverLng != null)
-        Marker(
-          point: LatLng(driverLat, driverLng),
-          width: 40,
-          height: 40,
-          child: Tooltip(
-            message: ambulance!.plateNumber,
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppColors.statusEnRoute,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 4,
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.airport_shuttle,
-                  color: Colors.white, size: 20),
+      ));
+    }
+
+    // Driver pin
+    if (driverLat != null && driverLng != null) {
+      markers.add(Marker(
+        point: LatLng(driverLat, driverLng),
+        width: 40,
+        height: 40,
+        child: Tooltip(
+          message: ambulance.plateNumber,
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.statusEnRoute,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: [
+                BoxShadow(
+                    color: AppColors.statusEnRoute.withValues(alpha: 0.35),
+                    blurRadius: 10),
+              ],
             ),
+            child:
+                const Icon(Icons.airport_shuttle, color: Colors.white, size: 20),
           ),
         ),
-    ];
+      ));
+    }
+
+    // Default centre: driver's GPS → first incident → Kampala
+    final defaultCenter = driverLat != null && driverLng != null
+        ? LatLng(driverLat, driverLng)
+        : widget.incidents.isNotEmpty &&
+                widget.incidents.first.latitude != null
+            ? LatLng(widget.incidents.first.latitude!,
+                widget.incidents.first.longitude!)
+            : const LatLng(0.3476, 32.5825); // Kampala
 
     return Stack(
       children: [
         FlutterMap(
+          mapController: _mapController,
           options: MapOptions(
-            initialCenter: LatLng(centerLat, centerLng),
+            initialCenter: navTarget ?? defaultCenter,
             initialZoom: 13,
           ),
           children: [
             TileLayer(
-              urlTemplate:
-                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.erams.erams',
             ),
             MarkerLayer(markers: markers),
@@ -1329,44 +1268,69 @@ class _ActiveIncidentMap extends StatelessWidget {
         ),
         // Legend
         Positioned(
-          top: 8,
-          right: 8,
+          top: 10,
+          right: 10,
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.92),
+              color: Colors.white.withValues(alpha: 0.93),
               borderRadius: BorderRadius.circular(8),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 4),
+                    color: Colors.black.withValues(alpha: 0.1), blurRadius: 4),
               ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const _MapLegendItem(
-                    color: AppColors.primary,
-                    icon: Icons.person_pin_circle,
-                    label: 'Patient'),
-                if (hospitalLat != null) ...[
+                const _LegendRow(AppColors.primary, Icons.person_pin_circle,
+                    'Your patient'),
+                const SizedBox(height: 4),
+                const _LegendRow(AppColors.error, Icons.emergency_outlined,
+                    'Other calls'),
+                if (hospital != null) ...[
                   const SizedBox(height: 4),
-                  _MapLegendItem(
-                      color: AppColors.secondary,
-                      icon: Icons.local_hospital,
-                      label: hospital!.name.length > 12
-                          ? '${hospital!.name.substring(0, 12)}…'
-                          : hospital!.name),
+                  const _LegendRow(AppColors.secondary, Icons.local_hospital,
+                      'Hospital'),
                 ],
                 if (driverLat != null) ...[
                   const SizedBox(height: 4),
-                  const _MapLegendItem(
-                      color: AppColors.statusEnRoute,
-                      icon: Icons.airport_shuttle,
-                      label: 'You'),
+                  const _LegendRow(
+                      AppColors.statusEnRoute, Icons.airport_shuttle, 'You'),
                 ],
+              ],
+            ),
+          ),
+        ),
+        // Live badge
+        Positioned(
+          top: 10,
+          left: 10,
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppColors.statusAvailable,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                        color: Colors.white, shape: BoxShape.circle)),
+                const SizedBox(width: 5),
+                Text(
+                  'LIVE  ·  ${widget.incidents.length} calls',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5),
+                ),
               ],
             ),
           ),
@@ -1375,26 +1339,22 @@ class _ActiveIncidentMap extends StatelessWidget {
         Positioned(
           bottom: 2,
           right: 6,
-          child: Text('© OpenStreetMap',
-              style: TextStyle(
-                  fontSize: 9,
-                  color: Colors.black.withValues(alpha: 0.5))),
+          child: Text(
+            '© OpenStreetMap',
+            style: TextStyle(
+                fontSize: 9, color: Colors.black.withValues(alpha: 0.5)),
+          ),
         ),
       ],
     );
   }
 }
 
-class _MapLegendItem extends StatelessWidget {
+class _LegendRow extends StatelessWidget {
   final Color color;
   final IconData icon;
   final String label;
-
-  const _MapLegendItem({
-    required this.color,
-    required this.icon,
-    required this.label,
-  });
+  const _LegendRow(this.color, this.icon, this.label);
 
   @override
   Widget build(BuildContext context) {
