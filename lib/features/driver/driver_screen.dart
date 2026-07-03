@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -631,15 +633,29 @@ class _JobOfferCardState extends ConsumerState<_JobOfferCard> {
                         incident.patientConditionNotes,
                         highlight: true,
                       ),
-                    if (incident.latitude != null)
+                    if (incident.locationDescription.isNotEmpty)
                       _DetailRow(
                         Icons.place_outlined,
-                        '${incident.latitude!.toStringAsFixed(4)}, '
-                            '${incident.longitude!.toStringAsFixed(4)}',
+                        incident.locationDescription,
                       ),
                   ],
                 ),
               ),
+              // ── Map preview ───────────────────────────────────────
+              if (incident.latitude != null && incident.longitude != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      height: 200,
+                      child: _IncidentMapPreview(
+                        incidentLat: incident.latitude!,
+                        incidentLng: incident.longitude!,
+                      ),
+                    ),
+                  ),
+                ),
               // Buttons
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -903,6 +919,22 @@ class _ActiveIncidentCardState
                   ],
                 ),
               ),
+              // ── Live map ─────────────────────────────────────────
+              if (incident.latitude != null && incident.longitude != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      height: 260,
+                      child: _ActiveIncidentMap(
+                        incident: incident,
+                        hospital: hospitalAsync.valueOrNull,
+                        ambulance: ref.watch(driverAmbulanceProvider).valueOrNull,
+                      ),
+                    ),
+                  ),
+                ),
               // Navigate to scene
               if (incident.latitude != null)
                 Padding(
@@ -1061,6 +1093,335 @@ class _ActiveIncidentCardState
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Map preview shown in the Job Offer card (patient location only)
+// ---------------------------------------------------------------------------
+
+class _IncidentMapPreview extends StatelessWidget {
+  final double incidentLat;
+  final double incidentLng;
+
+  const _IncidentMapPreview({
+    required this.incidentLat,
+    required this.incidentLng,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final center = LatLng(incidentLat, incidentLng);
+    return Stack(
+      children: [
+        FlutterMap(
+          options: MapOptions(initialCenter: center, initialZoom: 14),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.erams.erams',
+            ),
+            MarkerLayer(
+              markers: [
+                Marker(
+                  point: center,
+                  width: 40,
+                  height: 48,
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.4),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.person_pin_circle,
+                            color: Colors.white, size: 20),
+                      ),
+                      Container(
+                          width: 2, height: 10, color: AppColors.primary),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        // Label
+        Positioned(
+          bottom: 6,
+          left: 8,
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Text('Patient Location',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary)),
+          ),
+        ),
+        // OSM attribution
+        Positioned(
+          bottom: 2,
+          right: 6,
+          child: Text('© OpenStreetMap',
+              style: TextStyle(
+                  fontSize: 9,
+                  color: Colors.black.withValues(alpha: 0.5))),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Live map shown in the Active Incident card (patient + hospital + driver)
+// ---------------------------------------------------------------------------
+
+class _ActiveIncidentMap extends StatelessWidget {
+  final Incident incident;
+  final Hospital? hospital;
+  final Ambulance? ambulance;
+
+  const _ActiveIncidentMap({
+    required this.incident,
+    required this.hospital,
+    required this.ambulance,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final patientLat = incident.latitude!;
+    final patientLng = incident.longitude!;
+    final hospitalLat = hospital?.latitude;
+    final hospitalLng = hospital?.longitude;
+    final driverLat = ambulance?.latitude;
+    final driverLng = ambulance?.longitude;
+
+    // Compute a center that includes all available points
+    final lats = [
+      patientLat,
+      if (hospitalLat != null) hospitalLat,
+      if (driverLat != null) driverLat,
+    ];
+    final lngs = [
+      patientLng,
+      if (hospitalLng != null) hospitalLng,
+      if (driverLng != null) driverLng,
+    ];
+    final centerLat =
+        lats.reduce((a, b) => a + b) / lats.length;
+    final centerLng =
+        lngs.reduce((a, b) => a + b) / lngs.length;
+
+    final markers = <Marker>[
+      // Patient / incident pin
+      Marker(
+        point: LatLng(patientLat, patientLng),
+        width: 40,
+        height: 48,
+        child: Tooltip(
+          message: incident.locationDescription.isEmpty
+              ? 'Patient'
+              : incident.locationDescription,
+          child: Column(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.4),
+                      blurRadius: 8,
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.person_pin_circle,
+                    color: Colors.white, size: 20),
+              ),
+              Container(width: 2, height: 10, color: AppColors.primary),
+            ],
+          ),
+        ),
+      ),
+      // Hospital pin
+      if (hospitalLat != null && hospitalLng != null)
+        Marker(
+          point: LatLng(hospitalLat, hospitalLng),
+          width: 40,
+          height: 40,
+          child: Tooltip(
+            message: hospital!.name,
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.secondary,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 4,
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.local_hospital,
+                  color: Colors.white, size: 20),
+            ),
+          ),
+        ),
+      // Driver / ambulance pin
+      if (driverLat != null && driverLng != null)
+        Marker(
+          point: LatLng(driverLat, driverLng),
+          width: 40,
+          height: 40,
+          child: Tooltip(
+            message: ambulance!.plateNumber,
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.statusEnRoute,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 4,
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.airport_shuttle,
+                  color: Colors.white, size: 20),
+            ),
+          ),
+        ),
+    ];
+
+    return Stack(
+      children: [
+        FlutterMap(
+          options: MapOptions(
+            initialCenter: LatLng(centerLat, centerLng),
+            initialZoom: 13,
+          ),
+          children: [
+            TileLayer(
+              urlTemplate:
+                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.erams.erams',
+            ),
+            MarkerLayer(markers: markers),
+          ],
+        ),
+        // Legend
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 4),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _MapLegendItem(
+                    color: AppColors.primary,
+                    icon: Icons.person_pin_circle,
+                    label: 'Patient'),
+                if (hospitalLat != null) ...[
+                  const SizedBox(height: 4),
+                  _MapLegendItem(
+                      color: AppColors.secondary,
+                      icon: Icons.local_hospital,
+                      label: hospital!.name.length > 12
+                          ? '${hospital!.name.substring(0, 12)}…'
+                          : hospital!.name),
+                ],
+                if (driverLat != null) ...[
+                  const SizedBox(height: 4),
+                  const _MapLegendItem(
+                      color: AppColors.statusEnRoute,
+                      icon: Icons.airport_shuttle,
+                      label: 'You'),
+                ],
+              ],
+            ),
+          ),
+        ),
+        // OSM attribution
+        Positioned(
+          bottom: 2,
+          right: 6,
+          child: Text('© OpenStreetMap',
+              style: TextStyle(
+                  fontSize: 9,
+                  color: Colors.black.withValues(alpha: 0.5))),
+        ),
+      ],
+    );
+  }
+}
+
+class _MapLegendItem extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  final String label;
+
+  const _MapLegendItem({
+    required this.color,
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 1.5)),
+          child: Icon(icon, color: Colors.white, size: 11),
+        ),
+        const SizedBox(width: 6),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 11, color: AppColors.textSecondary)),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Detail row
+// ---------------------------------------------------------------------------
 
 class _DetailRow extends StatelessWidget {
   final IconData icon;
