@@ -33,9 +33,13 @@ class _ChatSheetState extends ConsumerState<ChatSheet> {
   ScrollController? _listController;
   bool _sending = false;
   int _lastLength = 0;
+  late final String _myId;
 
-  String get _myId =>
-      supabaseClient.auth.currentUser?.id ?? '';
+  @override
+  void initState() {
+    super.initState();
+    _myId = supabaseClient.auth.currentUser?.id ?? '';
+  }
 
   @override
   void dispose() {
@@ -113,7 +117,9 @@ class _ChatSheetState extends ConsumerState<ChatSheet> {
 
               // ── Message list ───────────────────────────────────
               Expanded(
-                child: messagesAsync.when(
+                child: ColoredBox(
+                  color: const Color(0xFFEAE6DF), // WhatsApp chat background
+                  child: messagesAsync.when(
                   loading: () => const Center(
                       child: CircularProgressIndicator()),
                   error: (e, _) => Center(
@@ -134,17 +140,18 @@ class _ChatSheetState extends ConsumerState<ChatSheet> {
                     return ListView.builder(
                       controller: scrollController,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
+                          horizontal: 8, vertical: 12),
                       itemCount: messages.length,
                       itemBuilder: (_, i) {
                         final msg = messages[i];
-                        final showName = !msg.isMe(_myId) &&
+                        final isMe = msg.isMe(_myId);
+                        final showName = !isMe &&
                             (i == 0 ||
                                 messages[i - 1].senderId !=
                                     msg.senderId);
                         return _MessageBubble(
                           message: msg,
-                          isMe: msg.isMe(_myId),
+                          isMe: isMe,
                           showName: showName,
                         );
                       },
@@ -152,6 +159,7 @@ class _ChatSheetState extends ConsumerState<ChatSheet> {
                   },
                 ),
               ),
+            ),
 
               // ── Input bar ──────────────────────────────────────
               _InputBar(
@@ -327,68 +335,79 @@ class _MessageBubble extends StatelessWidget {
     required this.showName,
   });
 
+  // Sent bubble: green (like WhatsApp)
+  static const _sentColor = Color(0xFF005C4B);
+  // Received bubble: white
+  static const _receivedColor = Color(0xFFFFFFFF);
+
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: EdgeInsets.only(
+        top: 2,
+        bottom: 2,
+        left: isMe ? 64 : 8,
+        right: isMe ? 8 : 64,
+      ),
       child: Column(
         crossAxisAlignment:
             isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
+          // Sender name (only for received messages, only when sender changes)
           if (!isMe && showName)
             Padding(
-              padding: const EdgeInsets.only(left: 12, bottom: 2),
+              padding: const EdgeInsets.only(left: 14, bottom: 2),
               child: Text(
                 _senderLabel(message),
                 style: const TextStyle(
                     fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary),
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary),
               ),
             ),
-          Row(
-            mainAxisAlignment: isMe
-                ? MainAxisAlignment.end
-                : MainAxisAlignment.start,
-            children: [
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                    maxWidth:
-                        MediaQuery.of(context).size.width * 0.72),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 9),
-                  decoration: BoxDecoration(
-                    color: isMe
-                        ? AppColors.primary
-                        : const Color(0xFFEEEEEE),
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: Radius.circular(isMe ? 16 : 4),
-                      bottomRight: Radius.circular(isMe ? 4 : 16),
-                    ),
-                  ),
-                  child: Text(
-                    message.body,
-                    style: TextStyle(
-                      color: isMe
-                          ? Colors.white
-                          : AppColors.textPrimary,
-                      fontSize: 14,
-                    ),
+          // Bubble
+          Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 13, vertical: 8),
+            decoration: BoxDecoration(
+              color: isMe ? _sentColor : _receivedColor,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(16),
+                topRight: const Radius.circular(16),
+                bottomLeft: Radius.circular(isMe ? 16 : 4),
+                bottomRight: Radius.circular(isMe ? 4 : 16),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 3,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  message.body,
+                  style: TextStyle(
+                    color: isMe ? Colors.white : AppColors.textPrimary,
+                    fontSize: 14.5,
+                    height: 1.35,
                   ),
                 ),
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.only(
-                top: 2, left: 12, right: 12),
-            child: Text(
-              _formatTime(message.createdAt),
-              style: const TextStyle(
-                  fontSize: 10, color: AppColors.textHint),
+                const SizedBox(height: 3),
+                Text(
+                  _formatTime(message.createdAt),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isMe
+                        ? Colors.white.withValues(alpha: 0.65)
+                        : AppColors.textHint,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
