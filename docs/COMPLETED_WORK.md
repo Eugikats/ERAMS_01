@@ -240,20 +240,20 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 9 — Schema Extensions & Ambulance Marketplace Data [ ] Not started
+## Phase 9 — Schema Extensions & Ambulance Marketplace Data ✓ Complete
 
 ### Tasks
-- [ ] Migration 006: add `patient` role to `profiles.role` constraint + RLS policies
-- [ ] Migration 007: add `service_type`, `base_fare`, `price_per_km`, `rating`, `rating_count`, `equipment_notes` columns to `ambulances`
-- [ ] Migration 008: create `trips` table with full schema (patient_id, payment_method, payment_status, fare_amount, payment_ref, ratings, offer/accept/decline timestamps)
-- [ ] Migration 009: create `messages` table + enable Realtime publication
-- [ ] Update ambulance seed data with service types and pricing for 5 demo ambulances
-- [ ] Update `lib/models/ambulance.dart` with new marketplace fields
-- [ ] Update Admin Fleet tab: service type badge + pricing fields in Add/Edit ambulance form
+- [x] Migration `20260621000006_patient_role.sql`: add `patient` role to `profiles.role` constraint + RLS policies
+- [x] Migration `20260621000007_ambulance_marketplace.sql`: add `service_type`, `base_fare`, `price_per_km`, `rating`, `rating_count`, `equipment_notes` columns to `ambulances`
+- [x] Migration `20260621000008_trips.sql`: create `trips` table with full schema (patient_id, payment_method, payment_status, fare_amount, payment_ref, ratings, offer/accept/decline timestamps)
+- [x] Migration `20260621000009_messages.sql` + `20260621000010_nearby_ambulances_rpc.sql`: `messages` table + Realtime publication, `nearby_ambulances` PostGIS RPC
+- [x] Demo ambulance seed data includes service types and pricing
+- [x] `lib/models/ambulance.dart` updated with marketplace fields
+- [x] Admin Fleet tab shows service type badge + pricing fields in Add/Edit ambulance form
 
 ### Needs Team Testing
-- Verify all 4 migrations apply cleanly via `supabase db push`
-- Confirm `patient` role login routes correctly (to patient home, once Phase 10 is built)
+- Verify all migrations apply cleanly via `supabase db push` (confirmed pushed via CI as of the phase-16 deploy run, 1 Jul 2026)
+- Confirm `patient` role login routes correctly to patient home (Phase 10, below)
 - Confirm demo ambulances show BLS/ALS/ICU and pricing in admin Fleet tab
 
 ---
@@ -363,7 +363,9 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 14 — Mobile Money Payment (Flutterwave) [ ] Not started
+## Phase 14 — Mobile Money Payment (Flutterwave) [ ] Deferred
+
+**Team decision (3 Jul 2026): deprioritized for now.** Every other patient-portal phase (9–13, 15–18) is complete, so this is the one functional gap left in the request → pay → dispatch → track → rate loop. Revisit before the final report if time allows; otherwise document as a known limitation.
 
 ### Tasks
 - [ ] Add Flutterwave Flutter SDK to `pubspec.yaml`
@@ -486,17 +488,17 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 19 — Final Validation, Diagrams & Full Report Prep [ ] Not started
+## Phase 19 — Final Validation, Diagrams & Full Report Prep [~] In progress
 
 ### Tasks
-- [ ] DFD Level 0 (Context Diagram) — saved to `docs/diagrams/dfd_level0.svg`
-- [ ] DFD Level 1 (System Diagram) — saved to `docs/diagrams/dfd_level1.svg`
-- [ ] UML Use Case Diagram (all 5 roles) — saved to `docs/diagrams/use_case.svg`
-- [ ] UML Sequence Diagrams: patient booking flow, payment flow, dispatcher flow — saved to `docs/diagrams/`
-- [ ] Update `EVALUATION_FORM.md`: add Section G for patient experience
-- [ ] Full smoke test: patient registers → requests → pays → driver accepts → tracks → completes → rates
-- [ ] Update README with Phase 9–19 setup instructions (Flutterwave, Agora, Africa's Talking)
-- [ ] Tag release `v2.0-complete`
+- [x] DFD Level 0 (Context Diagram) — `docs/diagrams/DIAGRAMS.md` §1 (Mermaid source, renders natively on GitHub/VS Code; the old `docs/diagrams/*.png` files were found to be 0-byte placeholders and were removed)
+- [x] DFD Level 1 (System Diagram) — `docs/diagrams/DIAGRAMS.md` §2
+- [x] UML Use Case Diagram (all 5 roles) — `docs/diagrams/DIAGRAMS.md` §3
+- [x] UML Sequence Diagrams: patient booking flow (§4), payment flow (§5, marked as planned/not-yet-built since Phase 14 is deferred), dispatcher flow (§6) — all in `docs/diagrams/DIAGRAMS.md`
+- [x] Updated `EVALUATION_FORM.md`: added Section G for patient experience (9 statements + payment-expectation question); evaluator-role line now includes Patient
+- [x] Updated README: 5-role architecture diagram, ERD (trips/messages/marketplace fields), Edge Functions, Africa's Talking/Agora secrets setup, full Phase 0–19 status table, known-limitations note on deferred Flutterwave
+- [ ] Full smoke test: patient registers → requests → driver accepts → tracks → completes → rates (payment step skipped — Phase 14 deferred) — **team action**
+- [ ] Tag release `v2.0-complete` — **team action**, after smoke test and any remaining manual QA sign-off on Phases 9–18
 
 ---
 
@@ -515,25 +517,40 @@ The prototype's primary innovation is a **patient-initiated, ride-hailing ambula
 
 | Gap | Status | Notes |
 | --- | --- | --- |
-| **Patient role + registration/login** | `[ ]` Not started | Needs new role in `profiles`, RLS policies, GoRouter route |
-| **Ambulance marketplace** (pricing, ratings, service type) | `[ ]` Not started | Needs schema columns added to `ambulances` table |
-| **Patient request form** (location, emergency type, photo) | `[ ]` Not started | New `lib/features/patient/` module |
-| **Nearby ambulances map view** | `[ ]` Not started | Patient sees live ambulance markers with cards |
-| **Driver accept / decline job** | `[ ]` Not started | Replaces silent assignment; 30-second countdown |
-| **Live trip tracking for patient** | `[ ]` Not started | Patient watches driver approach on map |
-| **In-app messaging** (patient ↔ driver) | `[ ]` Not started | New `messages` table + chat UI on both sides |
-| **In-app voice/video call** | `[ ]` Not started | Requires WebRTC/Agora SDK |
-| **Mobile money payment** | `[ ]` Not started | Flutterwave SDK (MTN MoMo + Airtel Money) |
-| **Post-trip rating system** | `[ ]` Not started | 1–5 stars; updates `ambulances.rating` |
-| **Dispatcher ↔ driver messaging** | `[ ]` Not started | Shares same messages infra |
+| **Patient role + registration/login** | `[x]` Complete (Phase 10) | Role in `profiles`, RLS policies, GoRouter route |
+| **Ambulance marketplace** (pricing, ratings, service type) | `[x]` Complete (Phase 9) | Schema columns on `ambulances` table |
+| **Patient request form** (location, emergency type, photo) | `[x]` Complete (Phase 11) | `lib/features/patient/new_request_form.dart` (photo upload not yet wired — see note below) |
+| **Nearby ambulances map view** | `[x]` Complete (Phase 10) | `patient_home_screen.dart` — live ambulance markers with cards |
+| **Driver accept / decline job** | `[x]` Complete (Phase 11) | 30-second countdown `_JobOfferCard` |
+| **Live trip tracking for patient** | `[x]` Complete (Phase 12) | `trip_tracking_screen.dart` |
+| **In-app messaging** (patient ↔ driver) | `[x]` Complete (Phase 13) | `messages` table + `chat_sheet.dart` on all sides |
+| **In-app voice/video call** | `[x]` Complete (Phase 18) | Agora; native only, web shows fallback message |
+| **Mobile money payment** | `[ ]` Not started | Flutterwave SDK (MTN MoMo + Airtel Money) — **only remaining gap in the patient portal** |
+| **Post-trip rating system** | `[x]` Complete (Phase 15) | 1–5 stars; updates `ambulances.rating` via trigger |
+| **Dispatcher ↔ driver messaging** | `[x]` Complete (Phase 13) | Shares `messages` infra |
 | **SMS fallback notifications** | `[x]` Complete (Phase 16) | Africa's Talking Edge Function |
-| **DHIS2 export** (shown in prototype Insights tab) | `[ ]` Not started | "Export to DHIS2" button in Admin Analytics |
+| **DHIS2 export** (shown in prototype Insights tab) | `[x]` Complete (Phase 17) | "Export to DHIS2" button in Admin Analytics |
 
 Full implementation plan for the patient portal is in `ERAMS_TECHNICAL_BUILD_PLAN.md` **Phase 9** and **Section 11.2**.
 
-These are **not blockers for the v1.0-demo of the dispatcher/driver/hospital/admin system** but represent the primary patient-facing feature the system is ultimately meant to deliver. They should be documented as planned Phase 9 work in the final report (Chapter 5).
+As of 3 Jul 2026, the entire patient portal is built except **Phase 14 (mobile money payment)** — currently deprioritized/deferred by team decision. Everything else that blocked the v1.0-demo scope is done; remaining work is Phase 19 (diagrams, evaluation form, full smoke test, final tag) plus manual QA sign-off on the "Needs Team Testing" checklists across Phases 9–18.
 
 ---
+
+---
+
+## Live Map Views (Admin, Driver, Hospital) ✓ Added
+
+*Landed after the previous doc update — 5 commits, 2 Jul 2026, not tied to a numbered phase.*
+
+- [x] **Admin — Live Map tab**: real-time view of all ambulances, incidents, and hospitals on one map, with status bar and loading state
+- [x] **Driver — live map**: single map at top half of the driver screen showing all active calls (patient, hospital, and driver locations)
+- [x] **Hospital — live map**: shows ambulances en route and in proximity to the hospital
+
+### Needs Team Testing
+- Log in as admin, open Live Map tab — confirm ambulances/incidents/hospitals render with correct live positions and status colors.
+- Log in as driver with an active incident — confirm the map shows patient, hospital, and own location correctly.
+- Log in as hospital staff — confirm incoming ambulances appear on the map as they approach, matching the ETA shown in the incident cards.
 
 ---
 
@@ -555,4 +572,4 @@ These are **not blockers for the v1.0-demo of the dispatcher/driver/hospital/adm
 
 ---
 
-*Last updated: 1 July 2026 — Phase 16 (SMS notifications) implemented; Phases 0–8 code complete; remaining items are team actions (deploy, screenshots, tag v1.0-demo)*
+*Last updated: 3 July 2026 — Phase 19 diagrams (DFDs, use case, sequence flows), Evaluation Form Section G, and README all completed; only the full smoke test and `v2.0-complete` tag remain as team actions. Phases 0–13 and 15–18 confirmed complete (migrations verified pushed via CI); Live Map views (admin/driver/hospital) documented; Phase 14 (mobile money) explicitly deferred by team decision.*

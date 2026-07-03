@@ -5,7 +5,7 @@ Bachelor of Information Technology and Computing | 2025–2026
 
 ---
 
-**Evaluator role** (circle one): &nbsp; Dispatcher &nbsp;|&nbsp; Ambulance Driver &nbsp;|&nbsp; Hospital Staff &nbsp;|&nbsp; Administrator
+**Evaluator role** (circle one): &nbsp; Patient &nbsp;|&nbsp; Dispatcher &nbsp;|&nbsp; Ambulance Driver &nbsp;|&nbsp; Hospital Staff &nbsp;|&nbsp; Administrator
 
 **Date:** _____________________________ &nbsp;&nbsp; **Device used:** &nbsp; Desktop browser &nbsp;|&nbsp; Mobile browser &nbsp;|&nbsp; Android app
 
@@ -104,6 +104,38 @@ _______________________________________________
 | E2 | I did not experience any crashes or unexpected errors | ☐ | ☐ | ☐ | ☐ | ☐ |
 | E3 | The application loaded and was ready to use quickly | ☐ | ☐ | ☐ | ☐ | ☐ |
 | E4 | The system behaved consistently across multiple uses | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+---
+
+## Section G — Patient Experience (Patient)
+
+*Skip this section if your role is not Patient*
+
+| # | Statement | 1 | 2 | 3 | 4 | 5 |
+|---|-----------|---|---|---|---|---|
+| G1 | Registering and logging in was quick and easy | ☐ | ☐ | ☐ | ☐ | ☐ |
+| G2 | The map of nearby ambulances (price, rating, service type) was clear and helpful | ☐ | ☐ | ☐ | ☐ | ☐ |
+| G3 | Submitting a request (emergency type, notes, location) was straightforward | ☐ | ☐ | ☐ | ☐ | ☐ |
+| G4 | I understood what was happening while waiting for a driver to accept | ☐ | ☐ | ☐ | ☐ | ☐ |
+| G5 | The live trip-tracking map gave me confidence help was on the way | ☐ | ☐ | ☐ | ☐ | ☐ |
+| G6 | The in-app chat with the driver was easy to use | ☐ | ☐ | ☐ | ☐ | ☐ |
+| G7 | The voice/video call feature worked as expected (if used) | ☐ | ☐ | ☐ | ☐ | ☐ |
+| G8 | I received timely SMS updates (if applicable) | ☐ | ☐ | ☐ | ☐ | ☐ |
+| G9 | The post-trip rating screen was simple to complete | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+**Compared to phoning for an ambulance, requesting through the app is:**
+
+☐ Much better &nbsp; ☐ Somewhat better &nbsp; ☐ About the same &nbsp; ☐ Worse
+
+**How did you expect to pay for the trip, and did the app support it?**
+
+_______________________________________________
+
+**Comments on the patient booking experience:**
+
+_______________________________________________
+
+_______________________________________________
 
 ---
 
