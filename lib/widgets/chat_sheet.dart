@@ -367,67 +367,70 @@ class _MessageBubble extends StatelessWidget {
                   ),
                 ),
 
-              // Bubble.
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isMe ? _sentBg : _receivedBg,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(16),
-                    topRight: const Radius.circular(16),
-                    bottomLeft: Radius.circular(isMe ? 16 : 4),
-                    bottomRight: Radius.circular(isMe ? 4 : 16),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.10),
-                      blurRadius: 3,
-                      offset: const Offset(0, 1),
+              // Bubble — sizes to content, never full-width.
+              IntrinsicWidth(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isMe ? _sentBg : _receivedBg,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(16),
+                      topRight: const Radius.circular(16),
+                      bottomLeft: Radius.circular(isMe ? 16 : 4),
+                      bottomRight: Radius.circular(isMe ? 4 : 16),
                     ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Message text (left-aligned for natural reading).
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.10),
+                        blurRadius: 3,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    // End-align so timestamp row is always right-flush
+                    // inside the bubble, while text wraps naturally.
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Message text — textAlign left for readability.
+                      Text(
                         message.body,
+                        textAlign: TextAlign.left,
                         style: TextStyle(
-                          color:
-                              isMe ? Colors.white : AppColors.textPrimary,
+                          color: isMe
+                              ? Colors.white
+                              : AppColors.textPrimary,
                           fontSize: 14.5,
                           height: 1.35,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    // Timestamp + tick (tick only for my messages).
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          _formatTime(message.createdAt),
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: isMe
-                                ? Colors.white.withValues(alpha: 0.65)
-                                : AppColors.textHint,
+                      const SizedBox(height: 4),
+                      // Timestamp + tick (tick only on my messages).
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(
+                            _formatTime(message.createdAt),
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: isMe
+                                  ? Colors.white.withValues(alpha: 0.65)
+                                  : AppColors.textHint,
+                            ),
                           ),
-                        ),
-                        if (isMe) ...[
-                          const SizedBox(width: 3),
-                          _ReadTick(
-                            isRead: message.isSeenByOthers(myId),
-                          ),
+                          if (isMe) ...[
+                            const SizedBox(width: 3),
+                            _ReadTick(
+                              isRead: message.isSeenByOthers(myId),
+                            ),
+                          ],
                         ],
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
