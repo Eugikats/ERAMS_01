@@ -88,7 +88,6 @@ class _LiveMapTabState extends ConsumerState<_LiveMapTab> {
 
   @override
   void dispose() {
-    _mapController.dispose();
     super.dispose();
   }
 
@@ -102,6 +101,20 @@ class _LiveMapTabState extends ConsumerState<_LiveMapTab> {
     final incidentsAsync = ref.watch(incidentsNotifierProvider);
     final hospitalsAsync = ref.watch(adminHospitalsProvider);
 
+    // Show full-screen error if ALL three fail (no map to show at all)
+    if (ambulancesAsync.hasError &&
+        incidentsAsync.hasError &&
+        hospitalsAsync.hasError) {
+      return _ErrorView(
+        message: ambulancesAsync.error.toString(),
+        onRetry: () {
+          ref.invalidate(ambulancesNotifierProvider);
+          ref.invalidate(incidentsNotifierProvider);
+          ref.invalidate(adminHospitalsProvider);
+        },
+      );
+    }
+
     final ambulances = ambulancesAsync.valueOrNull ?? [];
     final incidents = incidentsAsync.valueOrNull ?? [];
     final hospitals = hospitalsAsync.valueOrNull ?? [];
@@ -109,7 +122,73 @@ class _LiveMapTabState extends ConsumerState<_LiveMapTab> {
     final activeIncidents =
         incidents.where((i) => i.status.isActive).toList();
 
-    return LayoutBuilder(
+    final isLoading =
+        ambulancesAsync.isLoading || incidentsAsync.isLoading;
+
+    final ambulancesOnMap =
+        ambulances.where((a) => a.latitude != null && a.longitude != null).length;
+    final incidentsOnMap =
+        activeIncidents.where((i) => i.latitude != null && i.longitude != null).length;
+
+    return Column(
+      children: [
+        // ── Status bar ──────────────────────────────────────────────
+        Container(
+          color: AppColors.surface,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              if (isLoading) ...[
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 8),
+                const Text('Loading live data…',
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary)),
+              ] else ...[
+                const Icon(Icons.circle, size: 10, color: Color(0xFF4CAF50)),
+                const SizedBox(width: 6),
+                Text(
+                  'LIVE  •  '
+                  '$ambulancesOnMap ambulance${ambulancesOnMap == 1 ? '' : 's'} on map  •  '
+                  '$incidentsOnMap active incident${incidentsOnMap == 1 ? '' : 's'}  •  '
+                  '${hospitals.length} hospital${hospitals.length == 1 ? '' : 's'}',
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary),
+                ),
+                if (ambulancesOnMap == 0 && ambulances.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  const Tooltip(
+                    message:
+                        'Ambulances are registered but have no GPS location yet. '
+                        'Location appears once a driver shares their position.',
+                    child: Icon(Icons.info_outline,
+                        size: 14, color: AppColors.textHint),
+                  ),
+                ],
+              ],
+              const Spacer(),
+              IconButton(
+                tooltip: 'Refresh',
+                icon: const Icon(Icons.refresh, size: 18),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: () {
+                  ref.invalidate(ambulancesNotifierProvider);
+                  ref.invalidate(incidentsNotifierProvider);
+                  ref.invalidate(adminHospitalsProvider);
+                },
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        // ── Map body ────────────────────────────────────────────────
+        Expanded(
+          child: LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 800;
 
@@ -145,18 +224,14 @@ class _LiveMapTabState extends ConsumerState<_LiveMapTab> {
               right: 12,
               child: _AdminMapLegend(),
             ),
-            // Live badge
+            // Live badge (top-left)
             Positioned(
               top: 12,
               left: 12,
               child: _LiveBadge(
-                ambulanceCount: ambulances
-                    .where((a) =>
-                        a.latitude != null && a.longitude != null)
-                    .length,
-                incidentCount: activeIncidents.length,
-                isLoading:
-                    ambulancesAsync.isLoading || incidentsAsync.isLoading,
+                ambulanceCount: ambulancesOnMap,
+                incidentCount: incidentsOnMap,
+                isLoading: isLoading,
               ),
             ),
             // Selected incident detail card
@@ -209,6 +284,9 @@ class _LiveMapTabState extends ConsumerState<_LiveMapTab> {
           ],
         );
       },
+          ),
+        ),
+      ],
     );
   }
 
