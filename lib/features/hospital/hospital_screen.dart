@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
@@ -133,7 +134,20 @@ class _HospitalScreenState extends ConsumerState<HospitalScreen>
                       hospital: hospital,
                       incidentsAsync: incidentsAsync),
                   const Divider(height: 1),
+                  // ── Top half: live map ──────────────────────────
                   Expanded(
+                    flex: 1,
+                    child: _HospitalLiveMap(
+                      hospital: hospital,
+                      ambulances: ambulances,
+                      incidents:
+                          incidentsAsync.valueOrNull ?? [],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  // ── Bottom half: incoming patient list ──────────
+                  Expanded(
+                    flex: 1,
                     child: incidentsAsync.when(
                       loading: () => const Center(
                           child: CircularProgressIndicator()),
@@ -182,6 +196,283 @@ class _HospitalScreenState extends ConsumerState<HospitalScreen>
           ),
         ],
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Live map — top half of the Incoming tab
+// ---------------------------------------------------------------------------
+
+class _HospitalLiveMap extends StatefulWidget {
+  final Hospital hospital;
+  final List<Ambulance> ambulances;
+  final List<Incident> incidents;
+
+  const _HospitalLiveMap({
+    required this.hospital,
+    required this.ambulances,
+    required this.incidents,
+  });
+
+  @override
+  State<_HospitalLiveMap> createState() => _HospitalLiveMapState();
+}
+
+class _HospitalLiveMapState extends State<_HospitalLiveMap> {
+  @override
+  Widget build(BuildContext context) {
+    final hosp = widget.hospital;
+    final hospLat = hosp.latitude;
+    final hospLng = hosp.longitude;
+
+    // IDs of ambulances currently heading to this hospital
+    final headingIds = widget.incidents
+        .where((i) => i.assignedAmbulanceId != null && i.status.isActive)
+        .map((i) => i.assignedAmbulanceId!)
+        .toSet();
+
+    final markers = <Marker>[];
+
+    // Hospital pin (always centre)
+    if (hospLat != null && hospLng != null) {
+      markers.add(Marker(
+        point: LatLng(hospLat, hospLng),
+        width: 52,
+        height: 52,
+        child: Tooltip(
+          message: hosp.name,
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.secondary,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: [
+                BoxShadow(
+                    color: AppColors.secondary.withValues(alpha: 0.4),
+                    blurRadius: 12),
+              ],
+            ),
+            child: const Icon(Icons.local_hospital,
+                color: Colors.white, size: 26),
+          ),
+        ),
+      ));
+    }
+
+    // Ambulance pins
+    for (final amb in widget.ambulances) {
+      final lat = amb.latitude;
+      final lng = amb.longitude;
+      if (lat == null || lng == null) continue;
+
+      final isHeading = headingIds.contains(amb.id);
+      final color = isHeading
+          ? AppColors.primary
+          : AppColors.forStatus(amb.status.dbValue);
+
+      markers.add(Marker(
+        point: LatLng(lat, lng),
+        width: isHeading ? 44 : 36,
+        height: isHeading ? 44 : 36,
+        child: Tooltip(
+          message: isHeading
+              ? '${amb.plateNumber} — heading here'
+              : '${amb.plateNumber} · ${amb.status.label}',
+          child: Container(
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(
+                  color: Colors.white, width: isHeading ? 3 : 2),
+              boxShadow: [
+                BoxShadow(
+                    color: color.withValues(alpha: 0.35),
+                    blurRadius: isHeading ? 10 : 4),
+              ],
+            ),
+            child: Icon(
+              isHeading
+                  ? Icons.airport_shuttle
+                  : Icons.airport_shuttle_outlined,
+              color: Colors.white,
+              size: isHeading ? 22 : 18,
+            ),
+          ),
+        ),
+      ));
+    }
+
+    // Patient / incident pins for active incidents at this hospital
+    for (final inc in widget.incidents) {
+      final lat = inc.latitude;
+      final lng = inc.longitude;
+      if (lat == null || lng == null) continue;
+      markers.add(Marker(
+        point: LatLng(lat, lng),
+        width: 40,
+        height: 48,
+        child: Tooltip(
+          message: inc.locationDescription.isEmpty
+              ? inc.natureOfEmergency
+              : inc.locationDescription,
+          child: Column(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AppColors.error,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                        color: AppColors.error.withValues(alpha: 0.4),
+                        blurRadius: 8),
+                  ],
+                ),
+                child: const Icon(Icons.person_pin_circle,
+                    color: Colors.white, size: 18),
+              ),
+              Container(
+                  width: 2, height: 12, color: AppColors.error),
+            ],
+          ),
+        ),
+      ));
+    }
+
+    final center = hospLat != null && hospLng != null
+        ? LatLng(hospLat, hospLng)
+        : const LatLng(0.3476, 32.5825);
+
+    final headingCount = headingIds.length;
+    final proximityCount =
+        widget.ambulances.where((a) => !headingIds.contains(a.id) &&
+            a.latitude != null).length;
+
+    return Stack(
+      children: [
+        FlutterMap(
+          options: MapOptions(initialCenter: center, initialZoom: 12),
+          children: [
+            TileLayer(
+              urlTemplate:
+                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.erams.erams',
+            ),
+            MarkerLayer(markers: markers),
+          ],
+        ),
+        // Legend
+        Positioned(
+          top: 10,
+          right: 10,
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.93),
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 4),
+              ],
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _HospLegendRow(AppColors.secondary, Icons.local_hospital,
+                    'This hospital'),
+                SizedBox(height: 4),
+                _HospLegendRow(AppColors.primary, Icons.airport_shuttle,
+                    'Heading here'),
+                SizedBox(height: 4),
+                _HospLegendRow(AppColors.statusAvailable,
+                    Icons.airport_shuttle_outlined, 'Available'),
+                SizedBox(height: 4),
+                _HospLegendRow(
+                    AppColors.error, Icons.person_pin_circle, 'Patient'),
+              ],
+            ),
+          ),
+        ),
+        // Live badge
+        Positioned(
+          top: 10,
+          left: 10,
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppColors.statusAvailable,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle)),
+                const SizedBox(width: 5),
+                Text(
+                  'LIVE  ·  $headingCount en route  ·  $proximityCount nearby',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // OSM attribution
+        Positioned(
+          bottom: 2,
+          right: 6,
+          child: Text(
+            '© OpenStreetMap',
+            style: TextStyle(
+                fontSize: 9,
+                color: Colors.black.withValues(alpha: 0.5)),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HospLegendRow extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  final String label;
+  const _HospLegendRow(this.color, this.icon, this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 1.5)),
+          child: Icon(icon, color: Colors.white, size: 11),
+        ),
+        const SizedBox(width: 6),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 11, color: AppColors.textSecondary)),
+      ],
     );
   }
 }
