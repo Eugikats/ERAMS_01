@@ -19,4 +19,16 @@ class MessageService {
       'body': body.trim(),
     });
   }
+
+  // Marks all messages in an incident (sent by others) as seen by current user.
+  Future<void> markSeen(String incidentId) async {
+    try {
+      await supabaseClient.rpc(
+        'mark_messages_seen',
+        params: {'p_incident_id': incidentId},
+      );
+    } catch (_) {
+      // Non-fatal: ticks are cosmetic, never block the UI.
+    }
+  }
 }
