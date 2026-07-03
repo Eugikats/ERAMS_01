@@ -331,10 +331,18 @@ class _MessageBubble extends StatelessWidget {
     required this.showName,
   });
 
-  // WhatsApp dark green for sent messages.
+  // WhatsApp dark green for my own (sent) messages.
   static const _sentBg = Color(0xFF005C4B);
-  // White for received messages.
-  static const _receivedBg = Color(0xFFFFFFFF);
+
+  // Received messages are tinted by the sender's role so a patient's
+  // messages look visually distinct from a driver's, dispatcher's, etc.
+  static Color _receivedBg(String role) => switch (role) {
+        'driver'     => const Color(0xFFDCEBFF), // soft blue
+        'patient'    => const Color(0xFFFFE3E0), // soft coral
+        'dispatcher' => const Color(0xFFEDE1FF), // soft purple
+        'hospital'   => const Color(0xFFD8F5EF), // soft teal
+        _            => const Color(0xFFFFFFFF),
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -379,7 +387,9 @@ class _MessageBubble extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: isMe ? _sentBg : _receivedBg,
+                      color: isMe
+                          ? _sentBg
+                          : _receivedBg(message.senderRole),
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(16),
                         topRight: const Radius.circular(16),
