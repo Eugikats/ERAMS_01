@@ -338,98 +338,107 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Asymmetric padding pushes the bubble to the correct side.
-    // IntrinsicWidth (wrapping the whole column) makes both the
-    // sender-name label and the bubble shrink-wrap to their content.
+    // Row + Flexible is the canonical chat-bubble layout:
+    //  • mainAxisAlignment pins the bubble to the correct side.
+    //  • Flexible lets the bubble shrink-wrap short text yet wrap long text,
+    //    capped at maxWidth so it never spans the whole screen.
     return Padding(
-      padding: EdgeInsets.only(
-        top: 2,
-        bottom: 2,
-        left: isMe ? 64 : 8,
-        right: isMe ? 8 : 64,
-      ),
-      child: Align(
-        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-        child: IntrinsicWidth(
-          child: Column(
-            crossAxisAlignment:
-                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Sender name (received messages only, first in a run).
-              if (!isMe && showName)
-                Padding(
-                  padding: const EdgeInsets.only(left: 12, bottom: 2),
-                  child: Text(
-                    _senderLabel(message),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
-
-              // Bubble.
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isMe ? _sentBg : _receivedBg,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(16),
-                    topRight: const Radius.circular(16),
-                    bottomLeft: Radius.circular(isMe ? 16 : 4),
-                    bottomRight: Radius.circular(isMe ? 4 : 16),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.10),
-                      blurRadius: 3,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Message text.
-                    Text(
-                      message.body,
-                      style: TextStyle(
-                        color: isMe ? Colors.white : AppColors.textPrimary,
-                        fontSize: 14.5,
-                        height: 1.35,
+      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+      child: Row(
+        mainAxisAlignment:
+            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Flexible(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.75,
+              ),
+              child: Column(
+                crossAxisAlignment: isMe
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Sender name (received messages only, first in a run).
+                  if (!isMe && showName)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 12, bottom: 2),
+                      child: Text(
+                        _senderLabel(message),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    // Timestamp + tick (tick only on sent messages).
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          _formatTime(message.createdAt),
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: isMe
-                                ? Colors.white.withValues(alpha: 0.65)
-                                : AppColors.textHint,
-                          ),
+
+                  // Bubble.
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isMe ? _sentBg : _receivedBg,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
+                        bottomLeft: Radius.circular(isMe ? 16 : 4),
+                        bottomRight: Radius.circular(isMe ? 4 : 16),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.10),
+                          blurRadius: 3,
+                          offset: const Offset(0, 1),
                         ),
-                        if (isMe) ...[
-                          const SizedBox(width: 3),
-                          _ReadTick(isRead: message.isSeenByOthers(myId)),
-                        ],
                       ],
                     ),
-                  ],
-                ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Message text.
+                        Text(
+                          message.body,
+                          style: TextStyle(
+                            color: isMe
+                                ? Colors.white
+                                : AppColors.textPrimary,
+                            fontSize: 14.5,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        // Timestamp + tick (tick only on sent messages).
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Text(
+                              _formatTime(message.createdAt),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: isMe
+                                    ? Colors.white.withValues(alpha: 0.65)
+                                    : AppColors.textHint,
+                              ),
+                            ),
+                            if (isMe) ...[
+                              const SizedBox(width: 3),
+                              _ReadTick(
+                                  isRead: message.isSeenByOthers(myId)),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

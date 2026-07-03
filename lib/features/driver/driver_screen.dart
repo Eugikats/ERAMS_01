@@ -17,6 +17,7 @@ import '../../state/driver_provider.dart';
 import '../../state/message_provider.dart';
 import '../../widgets/app_logo.dart';
 import '../../widgets/call_screen.dart';
+import '../../widgets/chat_list_view.dart';
 import '../../widgets/chat_sheet.dart';
 import '../../widgets/incident_history_list.dart';
 import '../../widgets/profile_edit_sheet.dart';
@@ -39,9 +40,9 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
-      if (_tabController.index == 1 && _historyRows.isEmpty) {
+      if (_tabController.index == 2 && _historyRows.isEmpty) {
         _loadHistory();
       }
     });
@@ -113,6 +114,7 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
           controller: _tabController,
           tabs: const [
             Tab(icon: Icon(Icons.airport_shuttle_outlined), text: 'Active'),
+            Tab(icon: Icon(Icons.forum_outlined), text: 'Chats'),
             Tab(icon: Icon(Icons.history), text: 'History'),
           ],
         ),
@@ -234,6 +236,8 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
           );
         },
       ),
+          // ── Chats tab ─────────────────────────────────────────
+          const ChatListView(),
           // ── History tab ───────────────────────────────────────
           IncidentHistoryList(
             rows: _historyRows,

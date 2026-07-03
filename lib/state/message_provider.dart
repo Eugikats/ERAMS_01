@@ -1,7 +1,16 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/chat_message.dart';
+import '../models/conversation.dart';
 import '../services/message_service.dart';
+
+/// Chat-list (conversation history) for the current user.
+/// The [ChatListView] widget invalidates this whenever a message row
+/// changes so the list stays live like WhatsApp/Telegram.
+final conversationsProvider =
+    FutureProvider.autoDispose<List<Conversation>>(
+  (ref) => MessageService().listConversations(),
+);
 
 /// Live stream of messages for a given incident.
 /// autoDispose ensures the Supabase channel is released when no widget

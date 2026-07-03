@@ -12,6 +12,7 @@ import '../../models/incident.dart';
 import '../../services/auth_service.dart';
 import '../../state/patient_provider.dart';
 import '../../widgets/app_logo.dart';
+import '../../widgets/chat_list_view.dart';
 import '../../widgets/profile_edit_sheet.dart';
 
 class PatientHomeScreen extends ConsumerStatefulWidget {
@@ -37,6 +38,11 @@ class _PatientHomeScreenState extends ConsumerState<PatientHomeScreen> {
       appBar: AppBar(
         title: const AppLogoHorizontal(),
         actions: [
+          IconButton(
+            tooltip: 'Chats',
+            icon: const Icon(Icons.forum_outlined),
+            onPressed: () => showChatListSheet(context),
+          ),
           IconButton(
             tooltip: 'My profile',
             icon: const Icon(Icons.account_circle_outlined),
