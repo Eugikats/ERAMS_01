@@ -497,8 +497,19 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 - [x] UML Sequence Diagrams: patient booking flow (§4), payment flow (§5, marked as planned/not-yet-built since Phase 14 is deferred), dispatcher flow (§6) — all in `docs/diagrams/DIAGRAMS.md`
 - [x] Updated `EVALUATION_FORM.md`: added Section G for patient experience (9 statements + payment-expectation question); evaluator-role line now includes Patient
 - [x] Updated README: 5-role architecture diagram, ERD (trips/messages/marketplace fields), Edge Functions, Africa's Talking/Agora secrets setup, full Phase 0–19 status table, known-limitations note on deferred Flutterwave
-- [ ] Full smoke test: patient registers → requests → driver accepts → tracks → completes → rates (payment step skipped — Phase 14 deferred) — **team action**
-- [ ] Tag release `v2.0-complete` — **team action**, after smoke test and any remaining manual QA sign-off on Phases 9–18
+- [x] `flutter analyze` — 0 issues (re-verified 4 Jul 2026)
+- [x] **Code-trace verification of the full patient portal loop** (substitute for a live click-through — no `.env`/`.env.json` credentials were available in this environment to run the real app; see note below): traced every file and RPC in the chain end-to-end and confirmed the wiring is correct with no gaps —
+  - `patient_register_screen.dart` → `AuthService.registerPatient()` → `/patient` redirect
+  - `new_request_form.dart` → `ambulance_picker_screen.dart` → `PatientService.createPatientIncident()` → `dispatch_incident(p_patient_id=...)` RPC → incident `pending_acceptance` + new `trips` row `status='requested'` (`20260624000011_patient_request.sql`)
+  - Driver `_JobOfferCard` (30s countdown) → `acceptTrip`/`declineTrip` RPCs — accept moves incident to `dispatched` + trip to `accepted`; decline re-offers to the next-nearest ambulance via PostGIS and inserts a fresh `requested` trip row, or resets the incident to `logged` if none are available
+  - `trip_tracking_screen.dart` — realtime-subscribes to the incident and ambulance rows, shows live ETA/distance/status banner; on `completed` shows the completion dialog
+  - `update_incident_status` RPC (driver-driven `en_route`→`arrived`→`completed`) + `sync_trips_on_incident_close` trigger (`20260624000012_rating_trigger.sql`) mirrors incident completion into the `trips` table so the patient side sees `completed` correctly
+  - `trip_rating_screen.dart` → `PatientService.submitRating()` → updates `trips.patient_rating` → `update_ambulance_rating_fn` trigger recalculates `ambulances.rating`/`rating_count`
+  - Verified against the live app's 18 migration files (`20260617000001` → `20260703000018`), sequential with no gaps
+- [ ] Full **live, click-through** smoke test: patient registers → requests → driver accepts → tracks → completes → rates (payment step skipped — Phase 14 deferred) — **team action still required**; the code-trace above is not a substitute for exercising the real Supabase realtime path (multi-session timing, RLS-as-actual-user, network conditions) with the live project
+- [ ] Tag release `v2.0-complete` — **team action**, after the live smoke test above passes and any remaining manual QA sign-off on Phases 9–18
+
+**Note on this update (4 Jul 2026):** the Supabase MCP connection available in this session pointed at an unrelated/stale project (`fgetidwqhvucxuyldsxr`, small legacy RPC set: `assign_nearest_ambulance`, `log_and_dispatch_incident`) — not the live ERAMS project (`walbcsfwwgyerhfgbjdp.supabase.co`) referenced elsewhere in this doc. No local `.env`/`.env.json` was present to build/run the real app either. So this pass verified code correctness statically (`flutter analyze`, migration sequence, full read-through of the request→accept→track→complete→rate code path) rather than running the live app. The actual click-through smoke test against the real deployed project remains a team action.
 
 ---
 
@@ -572,4 +583,4 @@ As of 3 Jul 2026, the entire patient portal is built except **Phase 14 (mobile m
 
 ---
 
-*Last updated: 3 July 2026 — Phase 19 diagrams (DFDs, use case, sequence flows), Evaluation Form Section G, and README all completed; only the full smoke test and `v2.0-complete` tag remain as team actions. Phases 0–13 and 15–18 confirmed complete (migrations verified pushed via CI); Live Map views (admin/driver/hospital) documented; Phase 14 (mobile money) explicitly deferred by team decision.*
+*Last updated: 4 July 2026 — `flutter analyze` re-verified clean (0 issues); full code-trace of the patient portal request→accept→track→complete→rate loop confirmed correctly wired end-to-end (no live-app credentials available in this environment, so this supplements rather than replaces a real click-through). Only the live smoke test and `v2.0-complete` tag remain as team actions. Phases 0–13 and 15–18 confirmed complete (migrations verified pushed via CI); Live Map views (admin/driver/hospital) documented; Phase 14 (mobile money) explicitly deferred by team decision.*
