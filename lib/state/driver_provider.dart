@@ -56,16 +56,7 @@ class DriverAmbulanceNotifier extends AsyncNotifier<Ambulance?> {
     if (amb == null) return;
     await DriverService().setAmbulanceStatus(amb.id, status);
     // Optimistic update; Realtime confirms shortly after
-    state = AsyncData(Ambulance(
-      id: amb.id,
-      plateNumber: amb.plateNumber,
-      status: AmbulanceStatus.fromString(status),
-      latitude: amb.latitude,
-      longitude: amb.longitude,
-      driverId: amb.driverId,
-      hospitalId: amb.hospitalId,
-      lastLocationUpdate: amb.lastLocationUpdate,
-    ));
+    state = AsyncData(amb.copyWith(status: AmbulanceStatus.fromString(status)));
   }
 }
 

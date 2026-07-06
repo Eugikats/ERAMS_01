@@ -364,25 +364,61 @@ class _AmbulanceHeader extends StatelessWidget {
 // Status toggle
 // ---------------------------------------------------------------------------
 
-class _StatusToggle extends StatelessWidget {
+class _StatusToggle extends StatefulWidget {
   final AmbulanceStatus current;
-  final ValueChanged<String> onChanged;
+  final Future<void> Function(String) onChanged;
 
   const _StatusToggle({required this.current, required this.onChanged});
 
   @override
+  State<_StatusToggle> createState() => _StatusToggleState();
+}
+
+class _StatusToggleState extends State<_StatusToggle> {
+  bool _updating = false;
+
+  Future<void> _select(String status) async {
+    if (_updating || widget.current.dbValue == status) return;
+    setState(() => _updating = true);
+    try {
+      await widget.onChanged(status);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update status: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _updating = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final current = widget.current;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'YOUR STATUS',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textSecondary,
-            letterSpacing: 1,
-          ),
+        Row(
+          children: [
+            const Text(
+              'YOUR STATUS',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textSecondary,
+                letterSpacing: 1,
+              ),
+            ),
+            if (_updating) ...[
+              const SizedBox(width: 8),
+              const SizedBox(
+                width: 10,
+                height: 10,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ],
+          ],
         ),
         const SizedBox(height: 10),
         Row(
@@ -393,7 +429,8 @@ class _StatusToggle extends StatelessWidget {
                 icon: Icons.check_circle_outline,
                 color: AppColors.statusAvailable,
                 selected: current == AmbulanceStatus.available,
-                onTap: () => onChanged('available'),
+                enabled: !_updating,
+                onTap: () => _select('available'),
               ),
             ),
             const SizedBox(width: 8),
@@ -403,7 +440,8 @@ class _StatusToggle extends StatelessWidget {
                 icon: Icons.do_not_disturb_on_outlined,
                 color: AppColors.statusBusy,
                 selected: current == AmbulanceStatus.busy,
-                onTap: () => onChanged('busy'),
+                enabled: !_updating,
+                onTap: () => _select('busy'),
               ),
             ),
             const SizedBox(width: 8),
@@ -413,7 +451,8 @@ class _StatusToggle extends StatelessWidget {
                 icon: Icons.power_settings_new,
                 color: AppColors.statusOffline,
                 selected: current == AmbulanceStatus.offline,
-                onTap: () => onChanged('offline'),
+                enabled: !_updating,
+                onTap: () => _select('offline'),
               ),
             ),
           ],
@@ -428,6 +467,7 @@ class _StatusButton extends StatelessWidget {
   final IconData icon;
   final Color color;
   final bool selected;
+  final bool enabled;
   final VoidCallback onTap;
 
   const _StatusButton({
@@ -436,44 +476,45 @@ class _StatusButton extends StatelessWidget {
     required this.color,
     required this.selected,
     required this.onTap,
+    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: selected ? color.withValues(alpha: 0.12) : Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
+    final fgColor = selected ? color : AppColors.textSecondary;
+    return Opacity(
+      opacity: enabled ? 1 : 0.5,
+      child: Material(
+        color: selected ? color.withValues(alpha: 0.12) : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: selected ? color : AppColors.divider,
-              width: selected ? 2 : 1,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon,
-                  color:
-                      selected ? color : AppColors.textSecondary,
-                  size: 22),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  color:
-                      selected ? color : AppColors.textSecondary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: selected ? color : AppColors.divider,
+                width: selected ? 2 : 1,
               ),
-            ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: fgColor, size: 22),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: fgColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
