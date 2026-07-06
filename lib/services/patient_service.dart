@@ -51,20 +51,25 @@ class PatientService {
         .single();
 
     // Insert the incident
-    final incidentData = await supabaseClient
-        .from('incidents')
-        .insert({
-          'reporter_name':          profileData['full_name'] as String? ?? '',
-          'reporter_phone':         profileData['phone'] as String? ?? '',
-          'incident_location':      'SRID=4326;POINT($longitude $latitude)',
-          'nature_of_emergency':    natureOfEmergency,
-          'patient_condition_notes': patientConditionNotes,
-          'assigned_hospital_id':   assignedHospitalId,
-          'status':                 'logged',
-          'created_by':             userId,
-        })
-        .select()
-        .single();
+    final Map<String, dynamic> incidentData;
+    try {
+      incidentData = await supabaseClient
+          .from('incidents')
+          .insert({
+            'reporter_name':          profileData['full_name'] as String? ?? '',
+            'reporter_phone':         profileData['phone'] as String? ?? '',
+            'incident_location':      'SRID=4326;POINT($longitude $latitude)',
+            'nature_of_emergency':    natureOfEmergency,
+            'patient_condition_notes': patientConditionNotes,
+            'assigned_hospital_id':   assignedHospitalId,
+            'status':                 'logged',
+            'created_by':             userId,
+          })
+          .select()
+          .single();
+    } on PostgrestException catch (e) {
+      throw parseDispatchError(e);
+    }
 
     final incidentId = incidentData['id'] as String;
 

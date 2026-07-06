@@ -19,6 +19,13 @@ class DispatchException implements Exception {
 /// both call dispatch_incident under the hood.
 DispatchException parseDispatchError(PostgrestException e) {
   final msg = e.message.toLowerCase();
+  if (e.code == '42501') {
+    return const DispatchException(
+      'row_level_security',
+      'Your session may have expired or your account isn\'t authorized '
+          'for this action. Please log out and log back in, then try again.',
+    );
+  }
   if (msg.contains('no_ambulance_available')) {
     return const DispatchException(
       'no_ambulance_available',
