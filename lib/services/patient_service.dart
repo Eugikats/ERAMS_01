@@ -20,6 +20,16 @@ class PatientService {
           .map((e) => Ambulance.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (_) {
+      final busyRows = await supabaseClient
+          .from('incidents')
+          .select('assigned_ambulance_id')
+          .inFilter('status',
+              ['pending_acceptance', 'dispatched', 'en_route', 'arrived']);
+      final busyIds = (busyRows as List)
+          .map((e) => e['assigned_ambulance_id'] as String?)
+          .whereType<String>()
+          .toSet();
+
       final data = await supabaseClient
           .from('ambulances')
           .select()
@@ -27,6 +37,7 @@ class PatientService {
           .order('plate_number');
       return (data as List)
           .map((e) => Ambulance.fromJson(e as Map<String, dynamic>))
+          .where((a) => !busyIds.contains(a.id))
           .toList();
     }
   }
