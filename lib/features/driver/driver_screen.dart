@@ -88,7 +88,6 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
     final ambulanceAsync = ref.watch(driverAmbulanceProvider);
     final incidentAsync = ref.watch(driverIncidentProvider);
     final profile = ref.watch(currentProfileProvider).valueOrNull;
-    final gpsActive = ref.watch(gpsActiveProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -174,22 +173,12 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
                       _AmbulanceHeader(
                         ambulance: ambulance,
                         driverName: profile?.fullName ?? '',
-                        gpsActive: gpsActive,
-                        onToggleGps: () async {
-                          if (gpsActive) {
-                            ref
-                                .read(gpsNotifierProvider.notifier)
-                                .stopTracking();
-                          } else {
-                            await ref
-                                .read(gpsNotifierProvider.notifier)
-                                .startTracking();
-                          }
-                        },
+                        online: ambulance.status != AmbulanceStatus.offline,
                       ),
                       const SizedBox(height: 12),
                       _StatusToggle(
                         current: ambulance.status,
+                        hasActiveJob: incidentAsync.valueOrNull != null,
                         onChanged: (newStatus) async {
                           await ref
                               .read(driverAmbulanceProvider.notifier)
@@ -258,14 +247,12 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
 class _AmbulanceHeader extends StatelessWidget {
   final Ambulance ambulance;
   final String driverName;
-  final bool gpsActive;
-  final VoidCallback onToggleGps;
+  final bool online;
 
   const _AmbulanceHeader({
     required this.ambulance,
     required this.driverName,
-    required this.gpsActive,
-    required this.onToggleGps,
+    required this.online,
   });
 
   @override
@@ -312,45 +299,38 @@ class _AmbulanceHeader extends StatelessWidget {
                 ],
               ),
             ),
-            GestureDetector(
-              onTap: onToggleGps,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: gpsActive
-                      ? Colors.greenAccent.withValues(alpha: 0.2)
-                      : Colors.white.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: gpsActive
-                        ? Colors.greenAccent
-                        : Colors.white.withValues(alpha: 0.3),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: online
+                    ? Colors.greenAccent.withValues(alpha: 0.2)
+                    : Colors.white.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: online
+                      ? Colors.greenAccent
+                      : Colors.white.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    online ? Icons.gps_fixed : Icons.gps_off,
+                    color: online ? Colors.greenAccent : Colors.white60,
+                    size: 14,
                   ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      gpsActive ? Icons.gps_fixed : Icons.gps_off,
-                      color: gpsActive
-                          ? Colors.greenAccent
-                          : Colors.white60,
-                      size: 14,
+                  const SizedBox(width: 4),
+                  Text(
+                    online ? 'GPS On' : 'GPS Off',
+                    style: TextStyle(
+                      color: online ? Colors.greenAccent : Colors.white60,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      gpsActive ? 'GPS On' : 'GPS Off',
-                      style: TextStyle(
-                        color: gpsActive
-                            ? Colors.greenAccent
-                            : Colors.white60,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -366,9 +346,14 @@ class _AmbulanceHeader extends StatelessWidget {
 
 class _StatusToggle extends StatefulWidget {
   final AmbulanceStatus current;
+  final bool hasActiveJob;
   final Future<void> Function(String) onChanged;
 
-  const _StatusToggle({required this.current, required this.onChanged});
+  const _StatusToggle({
+    required this.current,
+    required this.hasActiveJob,
+    required this.onChanged,
+  });
 
   @override
   State<_StatusToggle> createState() => _StatusToggleState();
@@ -440,10 +425,12 @@ class _StatusToggleState extends State<_StatusToggle> {
                 label: 'Busy',
                 icon: Icons.do_not_disturb_on_outlined,
                 color: AppColors.statusBusy,
-                selected: current == AmbulanceStatus.busy,
-                enabled: !_updating && current != AmbulanceStatus.offline,
-                onTap: () => _select(
-                    current == AmbulanceStatus.busy ? 'available' : 'busy'),
+                // Automatic: turns on the moment a job is accepted, and
+                // off again once it's completed/cancelled -- not a manual
+                // control, since being "busy" is a fact, not a choice.
+                selected: widget.hasActiveJob,
+                enabled: false,
+                onTap: () {},
               ),
             ),
           ],
