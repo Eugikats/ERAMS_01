@@ -60,7 +60,38 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
     final ambulance = await ref.read(driverAmbulanceProvider.future);
     if (!mounted) return;
     if (ambulance != null && ambulance.status != AmbulanceStatus.offline) {
-      await ref.read(gpsNotifierProvider.notifier).startTracking();
+      await _startGpsWithFeedback();
+    }
+  }
+
+  /// Starts location streaming and, if it can't, tells the driver why so they
+  /// can fix it (turn on location services, grant browser permission, etc.).
+  Future<void> _startGpsWithFeedback() async {
+    final result =
+        await ref.read(gpsNotifierProvider.notifier).startTracking();
+    if (!mounted) return;
+    final message = switch (result) {
+      GpsStartResult.started || GpsStartResult.alreadyRunning => null,
+      GpsStartResult.serviceDisabled =>
+        'Location services are off. Turn them on to share your position.',
+      GpsStartResult.permissionDenied =>
+        'Location permission denied. Allow location access to go live on the map.',
+      GpsStartResult.permissionDeniedForever =>
+        'Location is blocked for this site. Enable it in your browser settings, then tap GPS again.',
+    };
+    if (message != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
+  }
+
+  /// Manual GPS badge toggle: stop sharing if live, otherwise (re)start it.
+  Future<void> _toggleGps(bool currentlyActive) async {
+    if (currentlyActive) {
+      ref.read(gpsNotifierProvider.notifier).stopTracking();
+    } else {
+      await _startGpsWithFeedback();
     }
   }
 
@@ -88,6 +119,7 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
     final ambulanceAsync = ref.watch(driverAmbulanceProvider);
     final incidentAsync = ref.watch(driverIncidentProvider);
     final profile = ref.watch(currentProfileProvider).valueOrNull;
+    final gpsActive = ref.watch(gpsActiveProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -173,7 +205,8 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
                       _AmbulanceHeader(
                         ambulance: ambulance,
                         driverName: profile?.fullName ?? '',
-                        online: ambulance.status != AmbulanceStatus.offline,
+                        gpsActive: gpsActive,
+                        onToggleGps: () => _toggleGps(gpsActive),
                       ),
                       const SizedBox(height: 12),
                       _StatusToggle(
@@ -188,9 +221,7 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
                                 .read(gpsNotifierProvider.notifier)
                                 .stopTracking();
                           } else if (!ref.read(gpsActiveProvider)) {
-                            await ref
-                                .read(gpsNotifierProvider.notifier)
-                                .startTracking();
+                            await _startGpsWithFeedback();
                           }
                         },
                       ),
@@ -247,12 +278,14 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
 class _AmbulanceHeader extends StatelessWidget {
   final Ambulance ambulance;
   final String driverName;
-  final bool online;
+  final bool gpsActive;
+  final VoidCallback onToggleGps;
 
   const _AmbulanceHeader({
     required this.ambulance,
     required this.driverName,
-    required this.online,
+    required this.gpsActive,
+    required this.onToggleGps,
   });
 
   @override
@@ -299,38 +332,47 @@ class _AmbulanceHeader extends StatelessWidget {
                 ],
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: online
-                    ? Colors.greenAccent.withValues(alpha: 0.2)
-                    : Colors.white.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: online
-                      ? Colors.greenAccent
-                      : Colors.white.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    online ? Icons.gps_fixed : Icons.gps_off,
-                    color: online ? Colors.greenAccent : Colors.white60,
-                    size: 14,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    online ? 'GPS On' : 'GPS Off',
-                    style: TextStyle(
-                      color: online ? Colors.greenAccent : Colors.white60,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
+            Tooltip(
+              message: gpsActive
+                  ? 'Sharing your live location — tap to stop'
+                  : 'Location off — tap to share your live position',
+              child: GestureDetector(
+                onTap: onToggleGps,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: gpsActive
+                        ? Colors.greenAccent.withValues(alpha: 0.2)
+                        : Colors.white.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: gpsActive
+                          ? Colors.greenAccent
+                          : Colors.white.withValues(alpha: 0.3),
                     ),
                   ),
-                ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        gpsActive ? Icons.gps_fixed : Icons.gps_off,
+                        color: gpsActive ? Colors.greenAccent : Colors.white60,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        gpsActive ? 'GPS On' : 'GPS Off',
+                        style: TextStyle(
+                          color:
+                              gpsActive ? Colors.greenAccent : Colors.white60,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],

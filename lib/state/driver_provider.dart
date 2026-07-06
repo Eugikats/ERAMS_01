@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -162,10 +161,23 @@ final hospitalByIdProvider =
 });
 
 // ---------------------------------------------------------------------------
-// GPS tracking — streams device position, uploads every 2 s
+// GPS tracking — streams the device position and uploads it every 15 s.
+// Works on web (via geolocator_web / the browser Geolocation API) as well as
+// Android/iOS/desktop.
 // ---------------------------------------------------------------------------
 
+/// Whether the device position is currently being streamed and shared.
 final gpsActiveProvider = StateProvider<bool>((ref) => false);
+
+/// Outcome of a [GpsNotifier.startTracking] attempt, so the UI can explain to
+/// the driver exactly why location sharing did or didn't begin.
+enum GpsStartResult {
+  started,
+  alreadyRunning,
+  serviceDisabled,
+  permissionDenied,
+  permissionDeniedForever,
+}
 
 class GpsNotifier extends AsyncNotifier<Position?> {
   StreamSubscription<Position>? _positionSub;
@@ -182,10 +194,32 @@ class GpsNotifier extends AsyncNotifier<Position?> {
     return null;
   }
 
-  Future<void> startTracking() async {
-    // GPS hardware APIs are not available on Flutter web.
-    if (kIsWeb) return;
-    if (!await _ensurePermission()) return;
+  Future<GpsStartResult> startTracking() async {
+    // Already streaming — treat as success, don't open a second stream.
+    if (_positionSub != null) return GpsStartResult.alreadyRunning;
+
+    // Location services must be enabled on the device / browser.
+    bool serviceEnabled;
+    try {
+      serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    } catch (_) {
+      // Some browsers throw instead of answering — assume available and let
+      // the permission check below be the real gate.
+      serviceEnabled = true;
+    }
+    if (!serviceEnabled) return GpsStartResult.serviceDisabled;
+
+    var perm = await Geolocator.checkPermission();
+    if (perm == LocationPermission.denied) {
+      perm = await Geolocator.requestPermission();
+    }
+    if (perm == LocationPermission.deniedForever) {
+      return GpsStartResult.permissionDeniedForever;
+    }
+    if (perm != LocationPermission.whileInUse &&
+        perm != LocationPermission.always) {
+      return GpsStartResult.permissionDenied;
+    }
 
     ref.read(gpsActiveProvider.notifier).state = true;
 
@@ -194,14 +228,29 @@ class GpsNotifier extends AsyncNotifier<Position?> {
         accuracy: LocationAccuracy.high,
         distanceFilter: 0,
       ),
-    ).listen((pos) {
-      _latestPosition = pos;
-      state = AsyncData(pos);
-    });
+    ).listen(
+      (pos) {
+        final isFirstFix = _latestPosition == null;
+        _latestPosition = pos;
+        state = AsyncData(pos);
+        // Publish the very first fix immediately so the driver appears on the
+        // map without waiting for the next upload tick.
+        if (isFirstFix) _pushLocation();
+      },
+      onError: (Object e, StackTrace st) {
+        // Stream failed mid-session (permission revoked, hardware error) —
+        // flip back to inactive so the badge reflects reality.
+        state = AsyncError(e, st);
+        stopTracking();
+      },
+      cancelOnError: true,
+    );
 
-    // Upload on a fixed 2-second cadence regardless of stream frequency
+    // Upload on a fixed 15-second cadence regardless of stream frequency.
     _uploadTimer =
         Timer.periodic(const Duration(seconds: 15), (_) => _pushLocation());
+
+    return GpsStartResult.started;
   }
 
   void stopTracking() {
@@ -209,17 +258,8 @@ class GpsNotifier extends AsyncNotifier<Position?> {
     _positionSub = null;
     _uploadTimer?.cancel();
     _uploadTimer = null;
+    _latestPosition = null;
     ref.read(gpsActiveProvider.notifier).state = false;
-  }
-
-  Future<bool> _ensurePermission() async {
-    if (!await Geolocator.isLocationServiceEnabled()) return false;
-    var perm = await Geolocator.checkPermission();
-    if (perm == LocationPermission.denied) {
-      perm = await Geolocator.requestPermission();
-    }
-    return perm == LocationPermission.whileInUse ||
-        perm == LocationPermission.always;
   }
 
   Future<void> _pushLocation() async {
