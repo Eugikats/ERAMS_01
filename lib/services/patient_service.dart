@@ -114,6 +114,15 @@ class PatientService {
     return Incident.fromJson(incidentData);
   }
 
+  /// Cancels the patient's own request/trip on [incidentId], at any stage
+  /// before it's completed or already cancelled.
+  Future<void> cancelTrip(String incidentId, {String? reason}) async {
+    await supabaseClient.rpc('cancel_trip', params: {
+      'p_incident_id': incidentId,
+      if (reason != null) 'p_reason': reason,
+    });
+  }
+
   /// Records a patient rating (1–5 stars) for a completed trip.
   Future<void> submitRating(
       String tripId, int rating, String? comment) async {

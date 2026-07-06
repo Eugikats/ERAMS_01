@@ -176,6 +176,12 @@ class ActiveIncidentNotifier
       state = AsyncError(e, st);
     }
   }
+
+  /// Cancels this request. Realtime subscription refreshes state once the
+  /// incident row flips to 'cancelled'.
+  Future<void> cancelTrip({String? reason}) async {
+    await PatientService().cancelTrip(_incidentId, reason: reason);
+  }
 }
 
 final activeIncidentProvider = AsyncNotifierProvider.family<

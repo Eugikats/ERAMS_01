@@ -98,6 +98,14 @@ class _TripTrackingScreenState extends ConsumerState<TripTrackingScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         leading: BackButton(onPressed: () => context.go('/patient')),
+        actions: [
+          if (incident != null && _isCancellable(incident.status))
+            IconButton(
+              tooltip: 'Cancel request',
+              icon: const Icon(Icons.cancel_outlined),
+              onPressed: () => _confirmCancel(),
+            ),
+        ],
       ),
       body: incidentAsync.when(
         loading: () =>
@@ -444,6 +452,51 @@ class _TripTrackingScreenState extends ConsumerState<TripTrackingScreen> {
         ],
       ),
     );
+  }
+
+  static bool _isCancellable(IncidentStatus status) =>
+      status != IncidentStatus.completed &&
+      status != IncidentStatus.cancelled;
+
+  Future<void> _confirmCancel() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Cancel this request?'),
+        content: const Text(
+            'The assigned ambulance will be freed up for other emergencies. '
+            'This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Keep Request'),
+          ),
+          FilledButton(
+            style:
+                FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Cancel Request'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await ref
+          .read(activeIncidentProvider(widget.incidentId).notifier)
+          .cancelTrip();
+      // The ref.listen block above shows the snackbar and navigates back
+      // once Realtime confirms the incident is 'cancelled'.
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to cancel: $e')),
+        );
+      }
+    }
   }
 
   static String _formatDuration(Duration d) {
