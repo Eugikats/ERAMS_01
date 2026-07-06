@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -17,7 +16,6 @@ import 'features/patient/patient_home_screen.dart';
 import 'features/patient/trip_rating_screen.dart';
 import 'features/patient/trip_tracking_screen.dart';
 import 'services/supabase_service.dart';
-import 'state/auth_provider.dart';
 
 class EramsApp extends StatelessWidget {
   const EramsApp({super.key});
@@ -61,20 +59,6 @@ final _router = GoRouter(
                 true ||
             isPasswordRecovery);
     if (mustChangePassword && !onForceChange) return '/force-password-change';
-
-    // Keep each account inside its own portal — without this, a driver,
-    // dispatcher, hospital, or admin session could navigate straight to a
-    // patient (or another role's) URL and hit confusing RLS failures
-    // instead of a clean redirect, since screens don't self-check role.
-    if (session != null && !isPublic && !onForceChange) {
-      final role = ProviderScope.containerOf(context)
-          .read(currentProfileProvider)
-          .valueOrNull
-          ?.role;
-      if (role != null && !loc.startsWith(role.routePath)) {
-        return role.routePath;
-      }
-    }
 
     return null;
   },
