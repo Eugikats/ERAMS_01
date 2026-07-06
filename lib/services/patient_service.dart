@@ -1,6 +1,9 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/ambulance.dart';
 import '../models/incident.dart';
 import '../models/trip.dart';
+import 'incident_service.dart';
 import 'sms_service.dart';
 import 'supabase_service.dart';
 
@@ -66,11 +69,15 @@ class PatientService {
     final incidentId = incidentData['id'] as String;
 
     // Dispatch to the selected ambulance with patient_id → sets pending_acceptance
-    await supabaseClient.rpc('dispatch_incident', params: {
-      'p_incident_id':  incidentId,
-      'p_ambulance_id': ambulanceId,
-      'p_patient_id':   userId,
-    });
+    try {
+      await supabaseClient.rpc('dispatch_incident', params: {
+        'p_incident_id':  incidentId,
+        'p_ambulance_id': ambulanceId,
+        'p_patient_id':   userId,
+      });
+    } on PostgrestException catch (e) {
+      throw parseDispatchError(e);
+    }
 
     // Best-effort SMS fallback so the driver is alerted even if the app is closed.
     await SmsService().notifyDriverJobOffer(incidentId, ambulanceId);
@@ -117,10 +124,14 @@ class PatientService {
   /// Cancels the patient's own request/trip on [incidentId], at any stage
   /// before it's completed or already cancelled.
   Future<void> cancelTrip(String incidentId, {String? reason}) async {
-    await supabaseClient.rpc('cancel_trip', params: {
-      'p_incident_id': incidentId,
-      if (reason != null) 'p_reason': reason,
-    });
+    try {
+      await supabaseClient.rpc('cancel_trip', params: {
+        'p_incident_id': incidentId,
+        if (reason != null) 'p_reason': reason,
+      });
+    } on PostgrestException catch (e) {
+      throw parseDispatchError(e);
+    }
   }
 
   /// Records a patient rating (1–5 stars) for a completed trip.
