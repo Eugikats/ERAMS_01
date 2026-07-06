@@ -422,42 +422,103 @@ class _StatusToggleState extends State<_StatusToggle> {
         ),
         const SizedBox(height: 10),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: _StatusButton(
-                label: 'Available',
-                icon: Icons.check_circle_outline,
-                color: AppColors.statusAvailable,
-                selected: current == AmbulanceStatus.available,
+              flex: 3,
+              child: _OnlineSwitch(
+                online: current != AmbulanceStatus.offline,
                 enabled: !_updating,
-                onTap: () => _select('available'),
+                onChanged: (goOnline) =>
+                    _select(goOnline ? 'available' : 'offline'),
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
+              flex: 2,
               child: _StatusButton(
                 label: 'Busy',
                 icon: Icons.do_not_disturb_on_outlined,
                 color: AppColors.statusBusy,
                 selected: current == AmbulanceStatus.busy,
-                enabled: !_updating,
-                onTap: () => _select('busy'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _StatusButton(
-                label: 'Offline',
-                icon: Icons.power_settings_new,
-                color: AppColors.statusOffline,
-                selected: current == AmbulanceStatus.offline,
-                enabled: !_updating,
-                onTap: () => _select('offline'),
+                enabled: !_updating && current != AmbulanceStatus.offline,
+                onTap: () => _select(
+                    current == AmbulanceStatus.busy ? 'available' : 'busy'),
               ),
             ),
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Single Online/Offline switch — the primary control for going on or off
+/// duty. Any non-offline status (available/busy/dispatched/en_route) reads
+/// as "online".
+class _OnlineSwitch extends StatelessWidget {
+  final bool online;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  const _OnlineSwitch({
+    required this.online,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        online ? AppColors.statusAvailable : AppColors.statusOffline;
+    return Opacity(
+      opacity: enabled ? 1 : 0.5,
+      child: Material(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: enabled ? () => onChanged(!online) : null,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color, width: 2),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      online
+                          ? Icons.radio_button_checked
+                          : Icons.power_settings_new,
+                      color: color,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      online ? 'Online' : 'Offline',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                Switch(
+                  value: online,
+                  activeThumbColor: AppColors.statusAvailable,
+                  onChanged: enabled ? onChanged : null,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
