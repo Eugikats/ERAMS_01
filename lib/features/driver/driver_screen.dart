@@ -15,6 +15,7 @@ import '../../state/auth_provider.dart';
 import '../../state/dispatcher_provider.dart';
 import '../../state/driver_provider.dart';
 import '../../state/message_provider.dart';
+import '../../state/routing_provider.dart';
 import '../../widgets/app_logo.dart';
 import '../../widgets/call_screen.dart';
 import '../../widgets/chat_list_view.dart';
@@ -1385,6 +1386,22 @@ class _DriverLiveMapState extends ConsumerState<_DriverLiveMap> {
                 widget.incidents.first.longitude!)
             : const LatLng(0.3476, 32.5825); // Kampala
 
+    // Shortest road route to the patient assigned to this ambulance — the
+    // path the driver should actually follow, highlighted on the map.
+    final assignedLat = widget.assignedIncident?.latitude;
+    final assignedLng = widget.assignedIncident?.longitude;
+    final routeToPatient = (driverLat != null &&
+            driverLng != null &&
+            assignedLat != null &&
+            assignedLng != null)
+        ? ref
+            .watch(routeProvider(routeCacheKey(
+              LatLng(driverLat, driverLng),
+              LatLng(assignedLat, assignedLng),
+            )))
+            .valueOrNull
+        : null;
+
     return Stack(
       children: [
         FlutterMap(
@@ -1398,6 +1415,18 @@ class _DriverLiveMapState extends ConsumerState<_DriverLiveMap> {
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.erams.erams',
             ),
+            if (routeToPatient != null)
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: routeToPatient.points,
+                    color: AppColors.primary,
+                    strokeWidth: 5,
+                    borderColor: Colors.white,
+                    borderStrokeWidth: 1.5,
+                  ),
+                ],
+              ),
             MarkerLayer(markers: markers),
           ],
         ),

@@ -35,6 +35,9 @@ dependencies:
   # External app launch (Google Maps navigation deep link)
   url_launcher: ^6.0.0
 
+  # Turn-by-turn road routing (shortest path between patient and ambulance)
+  http: ^1.2.0
+
   # Offline storage (queue for location updates when offline)
   hive_flutter: ^1.1.0
 
