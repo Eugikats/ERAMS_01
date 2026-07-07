@@ -622,3 +622,16 @@ buttons").
   pop-up (not just the Active tab) → Accept dispatches the trip and reveals
   Chat/Voice Call/Video Call → Decline (or letting the 30s countdown expire)
   closes the pop-up and reassigns to the next ambulance.
+
+**Follow-up fix (same day):** after the pop-up landed, team testing surfaced
+that tapping **Accept** left the driver stuck — the dialog never closed and
+the active-incident card (patient details + Chat/Voice/Video buttons) never
+appeared. Root cause: `DriverIncidentNotifier.acceptOffer()` in
+`lib/state/driver_provider.dart` relied solely on a Realtime push to refresh
+local state after `accept_trip`, with no fallback — unlike `declineOffer()`
+right below it, which already calls `_refresh()` explicitly (its own comment
+explains why Realtime alone can't be trusted there). Added the same explicit
+`_refresh()` call to `acceptOffer()`, so the UI updates immediately on the
+driver's own action regardless of Realtime timing. Needs the same live
+click-through: Accept should now instantly reveal the patient's active
+incident card and the Chat/Voice Call/Video Call buttons.

@@ -118,7 +118,11 @@ class DriverIncidentNotifier extends AsyncNotifier<Incident?> {
     final incident = state.valueOrNull;
     if (incident == null) return;
     await DriverService().acceptTrip(incident.id);
-    // Realtime subscription fires on incident update → _refresh() handles state
+    // Realtime should also push this update, but don't leave the driver
+    // stuck on the job-offer screen if that's delayed or dropped — refresh
+    // now so the active-incident card (and call/chat buttons) appear
+    // immediately, same as declineOffer() below.
+    await _refresh();
   }
 
   /// Declines the current job offer. After decline, the incident is
