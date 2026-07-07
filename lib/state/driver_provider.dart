@@ -137,6 +137,14 @@ class DriverIncidentNotifier extends AsyncNotifier<Incident?> {
     }
   }
 
+  /// Re-fetches the current offer/incident after a failed accept/decline.
+  /// The RPCs reject with `unauthorized`/`invalid_status` when the offer has
+  /// already moved on server-side (taken, expired, or reassigned to a
+  /// different ambulance) — refreshing here lets the job-offer dialog
+  /// notice `stillOffered` is now false and close itself, instead of
+  /// leaving the driver stuck retapping Accept against a dead offer.
+  Future<void> refreshAfterConflict() => _refresh();
+
   Future<void> acceptOffer() async {
     final incident = state.valueOrNull;
     if (incident == null) return;

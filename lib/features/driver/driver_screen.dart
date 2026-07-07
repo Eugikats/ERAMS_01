@@ -825,9 +825,14 @@ class _JobOfferCardState extends ConsumerState<_JobOfferCard> {
     try {
       await ref.read(driverIncidentProvider.notifier).acceptOffer();
     } catch (e) {
+      // The RPC rejects with unauthorized/invalid_status when this offer
+      // already moved on server-side (taken, expired, or reassigned to a
+      // different ambulance). Refresh so the dialog notices and closes
+      // itself instead of leaving the driver stuck retapping Accept.
+      await ref.read(driverIncidentProvider.notifier).refreshAfterConflict();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to accept: $e')),
+          SnackBar(content: Text(_offerErrorMessage('accept', e))),
         );
         setState(() => _acting = false);
       }
@@ -841,13 +846,23 @@ class _JobOfferCardState extends ConsumerState<_JobOfferCard> {
     try {
       await ref.read(driverIncidentProvider.notifier).declineOffer();
     } catch (e) {
+      await ref.read(driverIncidentProvider.notifier).refreshAfterConflict();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to decline: $e')),
+          SnackBar(content: Text(_offerErrorMessage('decline', e))),
         );
         setState(() => _acting = false);
       }
     }
+  }
+
+  String _offerErrorMessage(String action, Object e) {
+    final msg = e.toString();
+    if (msg.contains('unauthorized') || msg.contains('invalid_status')) {
+      return 'This job offer is no longer available — it may have already '
+          'been taken or expired.';
+    }
+    return 'Failed to $action: $e';
   }
 
   @override
