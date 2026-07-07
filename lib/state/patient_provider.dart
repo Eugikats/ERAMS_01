@@ -132,6 +132,7 @@ final patientActiveIncidentProvider =
 class ActiveIncidentNotifier
     extends FamilyAsyncNotifier<Incident?, String> {
   RealtimeChannel? _channel;
+  Timer? _poll;
   late String _incidentId;
 
   @override
@@ -143,7 +144,18 @@ class ActiveIncidentNotifier
         .eq('id', _incidentId)
         .maybeSingle();
     _subscribeRealtime();
-    ref.onDispose(() => _channel?.unsubscribe());
+    // Backs up Realtime in case the "driver accepted" (or any other status)
+    // event is dropped for this client -- same rationale as
+    // NearbyAmbulancesNotifier above. Self-stops once the trip reaches a
+    // terminal status (see _refresh), since this provider isn't autoDispose
+    // and would otherwise poll a finished incident forever.
+    _poll ??=
+        Timer.periodic(const Duration(seconds: 20), (_) => _refresh());
+    ref.onDispose(() {
+      _poll?.cancel();
+      _poll = null;
+      _channel?.unsubscribe();
+    });
     return data != null ? Incident.fromJson(data) : null;
   }
 
@@ -171,7 +183,12 @@ class ActiveIncidentNotifier
           .select()
           .eq('id', _incidentId)
           .maybeSingle();
-      state = AsyncData(data != null ? Incident.fromJson(data) : null);
+      final incident = data != null ? Incident.fromJson(data) : null;
+      state = AsyncData(incident);
+      if (incident == null || !incident.status.isActive) {
+        _poll?.cancel();
+        _poll = null;
+      }
     } catch (e, st) {
       state = AsyncError(e, st);
     }

@@ -651,3 +651,87 @@ next thing to check is whether Realtime is reachable at all from the test
 device's network (some mobile carriers/firewalls block the WebSocket
 upgrade) — that would affect every Realtime-only path project-wide, not
 just this one.
+
+**Third follow-up (same day):** the real cause of "nothing remains on the
+screen after accepting" turned out to be a genuine Riverpod bug, not a
+Realtime reliability issue — verified directly against the installed
+`riverpod-2.6.1` package source, not just inferred. `DriverIncidentNotifier
+.build()` did `await ref.watch(driverAmbulanceProvider.future)`. Every ~15s,
+`GpsNotifier._pushLocation()` writes the driver's GPS position to
+`ambulances.current_location`, which fires `DriverAmbulanceNotifier`'s own
+Realtime callback and reassigns its `state` — and that reassignment
+unconditionally re-notifies `.future` watchers regardless of whether
+anything relevant actually changed. That forced `DriverIncidentNotifier
+.build()` to fully re-run on every GPS tick, and because
+`driver_screen.dart`'s `incidentAsync.when(...)` didn't pass
+`skipLoadingOnReload: true` (default `false`), every one of those reloads
+flashed the `loading` branch — wiping out the entire `_ActiveIncidentCard`
+(patient details + Chat/Voice/Video buttons) to a bare spinner, then back.
+Repeats every ~15s for as long as GPS streams, i.e. continuously once
+dispatched; `advanceStatus()` re-triggers it too since it also touches
+`ambulances.status`.
+
+Fix: swapped `ref.watch` for `ref.read` (no listener registered, so GPS-only
+updates can no longer force a reload), while keeping correctness for the one
+legitimate case an ambulance ID *should* change mid-session — an admin
+reassigning the driver to a different vehicle — via a targeted `ref.listen`
+that only calls `ref.invalidateSelf()` when the ambulance's `id` actually
+differs. Also added `skipLoadingOnReload: true` to the `incidentAsync.when`
+call in `driver_screen.dart` as zero-cost defense-in-depth, and hardened
+`_showJobOfferDialog` to pop any stray overlay (e.g. the profile sheet)
+before presenting a new offer, so it can never be left revealed behind the
+driver screen once the dialog closes.
+
+Known, separate, low-priority limitation noted in passing:
+`DriverAmbulanceNotifier._refresh()` never re-subscribes its Realtime
+channel to a new ambulance id if one is returned by a reassignment — that
+channel stays keyed to the original id from `build()`. Not touched here;
+flagging for a future pass if ambulance reassignment while a driver is
+logged in becomes a real workflow.
+
+### Needs Team Testing
+- `flutter analyze`: 0 issues (verified in this session). Confirmed via grep
+  that `DriverIncidentNotifier.build()` no longer contains any `ref.watch(...)`
+  call.
+- No live Supabase credentials available in this environment — this is a
+  code-trace fix, not a click-through verification. Team should confirm on a
+  real Android build: after Accept, the active-incident card and its
+  Chat/Voice Call/Video Call buttons stay visible and stop flickering over
+  60-90 seconds of GPS updates (previously flashed to a spinner roughly every
+  15s).
+
+---
+
+## Patient — Realtime Polling Fallback ✓ Added
+
+*Bug fix, 7 Jul 2026 — not tied to a numbered phase.*
+
+Same investigation as above surfaced a second, independent gap on the
+patient's side, matching the driver/patient's report that they "don't
+communicate in any way" after pairing. `ActiveIncidentNotifier` in
+`lib/state/patient_provider.dart` only ever refreshed its state from its
+Realtime `onPostgresChanges` callback — no polling backstop, unlike its
+sibling `NearbyAmbulancesNotifier` in the same file, which already has one
+(`Timer.periodic(20s)`) specifically because "a periodic refresh backs up
+Realtime in case events don't arrive." If the driver's acceptance event were
+ever dropped for the patient's client, `trip_tracking_screen.dart` would
+stay on "Waiting for driver to accept…" forever, and the Voice/Video Call
+FABs (gated on status != pending) would never appear on the patient's side —
+even though the driver had already accepted server-side.
+
+- [x] Added the same `Timer.periodic(20s)` backstop to `ActiveIncidentNotifier`,
+      un-debounced (this Realtime source is a single filtered row, not bursty
+      like the ambulance list `NearbyAmbulancesNotifier` polls).
+- [x] Self-terminates once the trip reaches a terminal status
+      (`IncidentStatus.isActive` is `false` only for `completed`/`cancelled`),
+      since this provider isn't `autoDispose` and would otherwise poll a
+      finished incident forever.
+
+### Needs Team Testing
+- `flutter analyze`: 0 issues (verified in this session).
+- No live Supabase credentials available in this environment — this is a
+  code-trace fix. The one scenario a static trace can't fully exercise: team
+  should verify by simulating a dropped Realtime event (e.g. toggling
+  airplane mode for a few seconds right as the driver accepts) that the
+  patient's "Waiting for driver to accept…" banner still resolves within
+  ~20s via the new poll, even if the Realtime push never arrives.

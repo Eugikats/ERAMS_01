@@ -70,12 +70,35 @@ final driverAmbulanceProvider =
 
 class DriverIncidentNotifier extends AsyncNotifier<Incident?> {
   RealtimeChannel? _channel;
+  // The ambulance ID this build's fetch/Realtime subscription is keyed to.
+  // Used only to detect a genuine reassignment to a different ambulance.
+  String? _subscribedAmbulanceId;
 
   @override
   Future<Incident?> build() async {
-    final ambulance = await ref.watch(driverAmbulanceProvider.future);
-    if (ambulance == null) return null;
+    // ref.read (not ref.watch): only need the ambulance ID once per build.
+    // Watching `.future` made Riverpod fully re-run this build() (briefly
+    // showing `loading`, wiping the active-incident card) every ~15s --
+    // every GPS location push updates the driver's own `ambulances` row,
+    // which unconditionally re-notifies `.future` watchers regardless of
+    // whether anything relevant to this notifier actually changed.
+    final ambulance = await ref.read(driverAmbulanceProvider.future);
 
+    // Still notice a genuine reassignment to a different ambulance (e.g. an
+    // admin moves this driver to another vehicle) -- just not every routine
+    // field update (GPS, status) on the same one.
+    ref.listen<AsyncValue<Ambulance?>>(driverAmbulanceProvider, (prev, next) {
+      if (next.valueOrNull?.id != _subscribedAmbulanceId) {
+        ref.invalidateSelf();
+      }
+    });
+
+    if (ambulance == null) {
+      _subscribedAmbulanceId = null;
+      return null;
+    }
+
+    _subscribedAmbulanceId = ambulance.id;
     final incident =
         await DriverService().fetchActiveIncident(ambulance.id);
     _subscribeRealtime(ambulance.id);

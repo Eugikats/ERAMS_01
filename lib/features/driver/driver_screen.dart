@@ -119,6 +119,13 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
   }
 
   void _showJobOfferDialog(String incidentId) {
+    // Clear any stray overlay (e.g. the profile sheet) before presenting the
+    // offer, so it's never left revealed behind the driver screen once the
+    // dialog later pops on accept/decline/timeout. Safe because a new offer
+    // can only arrive when the driver has no active incident, so a call
+    // screen or chat sheet can't legitimately be open at this moment.
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) navigator.popUntil((route) => route.isFirst);
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -255,6 +262,13 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
                       ),
                       const SizedBox(height: 16),
                       incidentAsync.when(
+                        // Defense-in-depth: DriverIncidentNotifier.build() no
+                        // longer watches anything that reloads it on routine
+                        // GPS/status updates, so this shouldn't fire — but if
+                        // a future change adds a ref.watch() there, this
+                        // keeps the active-incident card from flickering to
+                        // a spinner instead of silently reintroducing it.
+                        skipLoadingOnReload: true,
                         loading: () => const Center(
                           child: Padding(
                             padding: EdgeInsets.all(40),
