@@ -71,8 +71,7 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
   /// Starts location streaming and, if it can't, tells the driver why so they
   /// can fix it (turn on location services, grant browser permission, etc.).
   Future<void> _startGpsWithFeedback() async {
-    final result =
-        await ref.read(gpsNotifierProvider.notifier).startTracking();
+    final result = await ref.read(gpsNotifierProvider.notifier).startTracking();
     if (!mounted) return;
     final message = switch (result) {
       GpsStartResult.started || GpsStartResult.alreadyRunning => null,
@@ -100,16 +99,14 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
   }
 
   Future<void> _loadHistory() async {
-    final ambulanceId =
-        ref.read(driverAmbulanceProvider).valueOrNull?.id;
+    final ambulanceId = ref.read(driverAmbulanceProvider).valueOrNull?.id;
     if (ambulanceId == null) return;
     setState(() {
       _historyLoading = true;
       _historyError = null;
     });
     try {
-      final rows =
-          await ProfileService().fetchDriverHistory(ambulanceId);
+      final rows = await ProfileService().fetchDriverHistory(ambulanceId);
       if (mounted) setState(() => _historyRows = rows);
     } catch (e) {
       if (mounted) setState(() => _historyError = e.toString());
@@ -145,7 +142,8 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
     // countdown they shouldn't be able to miss just by being on Chats.
     ref.listen<AsyncValue<Incident?>>(driverIncidentProvider, (prev, next) {
       final incident = next.valueOrNull;
-      if (incident == null || incident.status != IncidentStatus.pendingAcceptance) {
+      if (incident == null ||
+          incident.status != IncidentStatus.pendingAcceptance) {
         _lastOfferDialogIncidentId = null;
         return;
       }
@@ -190,126 +188,124 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
         children: [
           // ── Active tab ────────────────────────────────────────
           ambulanceAsync.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Text('Error: $e',
-              style: const TextStyle(color: AppColors.error)),
-        ),
-        data: (ambulance) {
-          if (ambulance == null) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Text(
-                  'No ambulance is linked to your account.\n'
-                  'Contact the administrator.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      color: AppColors.textSecondary, fontSize: 15),
-                ),
-              ),
-            );
-          }
-
-          final allIncidents =
-              ref.watch(incidentsNotifierProvider).valueOrNull ?? [];
-          final activeIncidents = allIncidents
-              .where((i) => i.status.isActive)
-              .toList();
-
-          // Once a job is accepted (dispatched/en_route/arrived), the patient
-          // card + communication channels live in the bottom panel. Give that
-          // panel the majority of the screen so the card is fully visible
-          // instead of being pushed below the fold under the header/status.
-          final assignedIncident = incidentAsync.valueOrNull;
-          final hasActiveCard = assignedIncident != null &&
-              assignedIncident.status != IncidentStatus.pendingAcceptance;
-
-          return Column(
-            children: [
-              // ── Live map (shrinks once a job is active) ─────────
-              Expanded(
-                flex: hasActiveCard ? 2 : 1,
-                child: _DriverLiveMap(
-                  ambulance: ambulance,
-                  incidents: activeIncidents,
-                  assignedIncident: incidentAsync.valueOrNull,
-                ),
-              ),
-              // ── Header + status + active-incident card ──────────
-              Expanded(
-                flex: hasActiveCard ? 3 : 1,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _AmbulanceHeader(
-                        ambulance: ambulance,
-                        driverName: profile?.fullName ?? '',
-                        gpsActive: gpsActive,
-                        onToggleGps: () => _toggleGps(gpsActive),
-                      ),
-                      const SizedBox(height: 12),
-                      _StatusToggle(
-                        current: ambulance.status,
-                        hasActiveJob: incidentAsync.valueOrNull != null,
-                        onChanged: (newStatus) async {
-                          await ref
-                              .read(driverAmbulanceProvider.notifier)
-                              .setStatus(newStatus);
-                          if (newStatus == 'offline') {
-                            ref
-                                .read(gpsNotifierProvider.notifier)
-                                .stopTracking();
-                          } else if (!ref.read(gpsActiveProvider)) {
-                            await _startGpsWithFeedback();
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      incidentAsync.when(
-                        // Defense-in-depth: DriverIncidentNotifier.build() no
-                        // longer watches anything that reloads it on routine
-                        // GPS/status updates, so this shouldn't fire — but if
-                        // a future change adds a ref.watch() there, this
-                        // keeps the active-incident card from flickering to
-                        // a spinner instead of silently reintroducing it.
-                        skipLoadingOnReload: true,
-                        loading: () => const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(40),
-                            child: CircularProgressIndicator(),
-                          ),
-                        ),
-                        error: (e, _) => Text(
-                          'Error loading incident: $e',
-                          style: const TextStyle(color: AppColors.error),
-                        ),
-                        data: (incident) {
-                          if (incident == null) {
-                            return const _StandingByCard();
-                          }
-                          if (incident.status ==
-                              IncidentStatus.pendingAcceptance) {
-                            return _JobOfferPendingNotice(
-                              incident: incident,
-                              onRespond: () =>
-                                  _showJobOfferDialog(incident.id),
-                            );
-                          }
-                          return _ActiveIncidentCard(incident: incident);
-                        },
-                      ),
-                    ],
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(
+              child: Text('Error: $e',
+                  style: const TextStyle(color: AppColors.error)),
+            ),
+            data: (ambulance) {
+              if (ambulance == null) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Text(
+                      'No ambulance is linked to your account.\n'
+                      'Contact the administrator.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          color: AppColors.textSecondary, fontSize: 15),
+                    ),
                   ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
+                );
+              }
+
+              final allIncidents =
+                  ref.watch(incidentsNotifierProvider).valueOrNull ?? [];
+              final activeIncidents =
+                  allIncidents.where((i) => i.status.isActive).toList();
+
+              // Once a job is accepted (dispatched/en_route/arrived), the patient
+              // card + communication channels live in the bottom panel. Give that
+              // panel the majority of the screen so the card is fully visible
+              // instead of being pushed below the fold under the header/status.
+              final assignedIncident = incidentAsync.valueOrNull;
+              final hasActiveCard = assignedIncident != null &&
+                  assignedIncident.status != IncidentStatus.pendingAcceptance;
+
+              return Column(
+                children: [
+                  // ── Live map (shrinks once a job is active) ─────────
+                  Expanded(
+                    flex: hasActiveCard ? 2 : 1,
+                    child: _DriverLiveMap(
+                      ambulance: ambulance,
+                      incidents: activeIncidents,
+                      assignedIncident: incidentAsync.valueOrNull,
+                    ),
+                  ),
+                  // ── Header + status + active-incident card ──────────
+                  Expanded(
+                    flex: hasActiveCard ? 3 : 1,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _AmbulanceHeader(
+                            ambulance: ambulance,
+                            driverName: profile?.fullName ?? '',
+                            gpsActive: gpsActive,
+                            onToggleGps: () => _toggleGps(gpsActive),
+                          ),
+                          const SizedBox(height: 12),
+                          _StatusToggle(
+                            current: ambulance.status,
+                            hasActiveJob: incidentAsync.valueOrNull != null,
+                            onChanged: (newStatus) async {
+                              await ref
+                                  .read(driverAmbulanceProvider.notifier)
+                                  .setStatus(newStatus);
+                              if (newStatus == 'offline') {
+                                ref
+                                    .read(gpsNotifierProvider.notifier)
+                                    .stopTracking();
+                              } else if (!ref.read(gpsActiveProvider)) {
+                                await _startGpsWithFeedback();
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          incidentAsync.when(
+                            // Defense-in-depth: DriverIncidentNotifier.build() no
+                            // longer watches anything that reloads it on routine
+                            // GPS/status updates, so this shouldn't fire — but if
+                            // a future change adds a ref.watch() there, this
+                            // keeps the active-incident card from flickering to
+                            // a spinner instead of silently reintroducing it.
+                            skipLoadingOnReload: true,
+                            loading: () => const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(40),
+                                child: CircularProgressIndicator(),
+                              ),
+                            ),
+                            error: (e, _) => Text(
+                              'Error loading incident: $e',
+                              style: const TextStyle(color: AppColors.error),
+                            ),
+                            data: (incident) {
+                              if (incident == null) {
+                                return const _StandingByCard();
+                              }
+                              if (incident.status ==
+                                  IncidentStatus.pendingAcceptance) {
+                                return _JobOfferPendingNotice(
+                                  incident: incident,
+                                  onRespond: () =>
+                                      _showJobOfferDialog(incident.id),
+                                );
+                              }
+                              return _ActiveIncidentCard(incident: incident);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
           // ── Chats tab ─────────────────────────────────────────
           const ChatListView(),
           // ── History tab ───────────────────────────────────────
@@ -347,8 +343,7 @@ class _AmbulanceHeader extends StatelessWidget {
     return Card(
       elevation: 0,
       color: AppColors.primary,
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -393,8 +388,8 @@ class _AmbulanceHeader extends StatelessWidget {
               child: GestureDetector(
                 onTap: onToggleGps,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: gpsActive
                         ? Colors.greenAccent.withValues(alpha: 0.2)
@@ -502,34 +497,43 @@ class _StatusToggleState extends State<_StatusToggle> {
           ],
         ),
         const SizedBox(height: 10),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              flex: 3,
-              child: _OnlineSwitch(
-                online: current != AmbulanceStatus.offline,
-                enabled: !_updating,
-                onChanged: (goOnline) =>
-                    _select(goOnline ? 'available' : 'offline'),
+        // IntrinsicHeight gives the stretch-aligned Row a concrete height to
+        // stretch against. Without it, this Row sits inside a Column that's
+        // inside a SingleChildScrollView, which hands down an unbounded
+        // height -- CrossAxisAlignment.stretch under an unbounded height
+        // corrupts layout instead of throwing (release builds strip the
+        // assertion that would catch this in debug), leaving this row and
+        // everything painted after it invisible.
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                flex: 3,
+                child: _OnlineSwitch(
+                  online: current != AmbulanceStatus.offline,
+                  enabled: !_updating,
+                  onChanged: (goOnline) =>
+                      _select(goOnline ? 'available' : 'offline'),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 2,
-              child: _StatusButton(
-                label: 'Busy',
-                icon: Icons.do_not_disturb_on_outlined,
-                color: AppColors.statusBusy,
-                // Automatic: turns on the moment a job is accepted, and
-                // off again once it's completed/cancelled -- not a manual
-                // control, since being "busy" is a fact, not a choice.
-                selected: widget.hasActiveJob,
-                enabled: false,
-                onTap: () {},
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: _StatusButton(
+                  label: 'Busy',
+                  icon: Icons.do_not_disturb_on_outlined,
+                  color: AppColors.statusBusy,
+                  // Automatic: turns on the moment a job is accepted, and
+                  // off again once it's completed/cancelled -- not a manual
+                  // control, since being "busy" is a fact, not a choice.
+                  selected: widget.hasActiveJob,
+                  enabled: false,
+                  onTap: () {},
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -552,8 +556,7 @@ class _OnlineSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color =
-        online ? AppColors.statusAvailable : AppColors.statusOffline;
+    final color = online ? AppColors.statusAvailable : AppColors.statusOffline;
     return Opacity(
       opacity: enabled ? 1 : 0.5,
       child: Material(
@@ -697,8 +700,7 @@ class _JobOfferDialog extends ConsumerWidget {
       canPop: false,
       child: Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        insetPadding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: _JobOfferCard(incident: incident),
@@ -753,8 +755,8 @@ class _JobOfferPendingNotice extends StatelessWidget {
                 ? 'Emergency'
                 : incident.natureOfEmergency,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-                fontSize: 13, color: AppColors.textSecondary),
+            style:
+                const TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 14),
           SizedBox(
@@ -916,8 +918,7 @@ class _JobOfferCardState extends ConsumerState<_JobOfferCard> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color:
-                      AppColors.statusPending.withValues(alpha: 0.06),
+                  color: AppColors.statusPending.withValues(alpha: 0.06),
                   borderRadius:
                       const BorderRadius.vertical(top: Radius.circular(16)),
                 ),
@@ -942,8 +943,7 @@ class _JobOfferCardState extends ConsumerState<_JobOfferCard> {
               ),
               // Details
               Padding(
-                padding:
-                    const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                 child: Column(
                   children: [
                     if (incident.reporterName.isNotEmpty)
@@ -983,8 +983,7 @@ class _JobOfferCardState extends ConsumerState<_JobOfferCard> {
                               borderRadius: BorderRadius.circular(12)),
                         ),
                         child: const Text('Decline',
-                            style:
-                                TextStyle(fontWeight: FontWeight.w700)),
+                            style: TextStyle(fontWeight: FontWeight.w700)),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -1002,12 +1001,10 @@ class _JobOfferCardState extends ConsumerState<_JobOfferCard> {
                                 width: 18,
                                 height: 18,
                                 child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white),
+                                    strokeWidth: 2, color: Colors.white),
                               )
                             : const Text('Accept',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.w700)),
+                                style: TextStyle(fontWeight: FontWeight.w700)),
                       ),
                     ),
                   ],
@@ -1032,8 +1029,7 @@ class _StandingByCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding:
-          const EdgeInsets.symmetric(vertical: 52, horizontal: 24),
+      padding: const EdgeInsets.symmetric(vertical: 52, horizontal: 24),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
@@ -1058,8 +1054,7 @@ class _StandingByCard extends StatelessWidget {
           const SizedBox(height: 8),
           const Text(
             'Waiting for dispatch assignment',
-            style: TextStyle(
-                fontSize: 13, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
         ],
       ),
@@ -1080,8 +1075,7 @@ class _ActiveIncidentCard extends ConsumerStatefulWidget {
       _ActiveIncidentCardState();
 }
 
-class _ActiveIncidentCardState
-    extends ConsumerState<_ActiveIncidentCard> {
+class _ActiveIncidentCardState extends ConsumerState<_ActiveIncidentCard> {
   bool _advancing = false;
 
   void _navigateToScene() {
@@ -1102,9 +1096,7 @@ class _ActiveIncidentCardState
   Future<void> _advance() async {
     setState(() => _advancing = true);
     try {
-      await ref
-          .read(driverIncidentProvider.notifier)
-          .advanceStatus();
+      await ref.read(driverIncidentProvider.notifier).advanceStatus();
     } finally {
       if (mounted) setState(() => _advancing = false);
     }
@@ -1115,8 +1107,7 @@ class _ActiveIncidentCardState
     final incident = widget.incident;
 
     final hospitalAsync = incident.assignedHospitalId != null
-        ? ref
-            .watch(hospitalByIdProvider(incident.assignedHospitalId!))
+        ? ref.watch(hospitalByIdProvider(incident.assignedHospitalId!))
         : const AsyncData<Hospital?>(null);
     final hospitalName = hospitalAsync.valueOrNull?.name;
 
@@ -1138,8 +1129,7 @@ class _ActiveIncidentCardState
             .valueOrNull
         : null;
 
-    final (buttonLabel, buttonIcon, buttonColor) =
-        switch (incident.status) {
+    final (buttonLabel, buttonIcon, buttonColor) = switch (incident.status) {
       IncidentStatus.dispatched => (
           "I'm En Route",
           Icons.directions_car_outlined,
@@ -1175,8 +1165,8 @@ class _ActiveIncidentCardState
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-                color: AppColors.primary.withValues(alpha: 0.25)),
+            border:
+                Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
             boxShadow: [
               BoxShadow(
                 color: AppColors.primary.withValues(alpha: 0.07),
@@ -1193,8 +1183,8 @@ class _ActiveIncidentCardState
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.05),
-                  borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(16)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(16)),
                 ),
                 child: Row(
                   children: [
@@ -1223,8 +1213,8 @@ class _ActiveIncidentCardState
                 child: Column(
                   children: [
                     if (incident.locationDescription.isNotEmpty)
-                      _DetailRow(Icons.place_outlined,
-                          incident.locationDescription),
+                      _DetailRow(
+                          Icons.place_outlined, incident.locationDescription),
                     if (route != null)
                       _DetailRow(
                         Icons.route_outlined,
@@ -1240,8 +1230,7 @@ class _ActiveIncidentCardState
                               : '${incident.reporterName}  ·  ${incident.reporterPhone}',
                     ),
                     if (hospitalName != null)
-                      _DetailRow(
-                          Icons.local_hospital_outlined, hospitalName),
+                      _DetailRow(Icons.local_hospital_outlined, hospitalName),
                     if (incident.patientConditionNotes.isNotEmpty) ...[
                       const Divider(height: 20),
                       _DetailRow(
@@ -1302,23 +1291,17 @@ class _ActiveIncidentCardState
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                 child: Builder(
                   builder: (ctx) {
-                    final msgs =
-                        ref.watch(messagesProvider(incident.id));
-                    final seen = ref.watch(
-                            chatSeenProvider)[incident.id] ??
-                        0;
+                    final msgs = ref.watch(messagesProvider(incident.id));
+                    final seen = ref.watch(chatSeenProvider)[incident.id] ?? 0;
                     final unread =
-                        ((msgs.valueOrNull?.length ?? 0) - seen)
-                            .clamp(0, 99);
+                        ((msgs.valueOrNull?.length ?? 0) - seen).clamp(0, 99);
                     return SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
-                        onPressed: () =>
-                            showChatSheet(context, incident.id),
+                        onPressed: () => showChatSheet(context, incident.id),
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(0, 48),
-                          side: const BorderSide(
-                              color: AppColors.secondary),
+                          side: const BorderSide(color: AppColors.secondary),
                           foregroundColor: AppColors.secondary,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -1326,11 +1309,8 @@ class _ActiveIncidentCardState
                         ),
                         icon: chatIconWithBadge(unread),
                         label: Text(
-                          unread > 0
-                              ? 'Chat ($unread new)'
-                              : 'Chat',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600),
+                          unread > 0 ? 'Chat ($unread new)' : 'Chat',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
                     );
@@ -1360,8 +1340,7 @@ class _ActiveIncidentCardState
                         ),
                         icon: const Icon(Icons.call_outlined, size: 18),
                         label: const Text('Voice Call',
-                            style:
-                                TextStyle(fontWeight: FontWeight.w600)),
+                            style: TextStyle(fontWeight: FontWeight.w600)),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -1374,18 +1353,16 @@ class _ActiveIncidentCardState
                         ),
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(0, 48),
-                          side: const BorderSide(
-                              color: AppColors.statusEnRoute),
+                          side:
+                              const BorderSide(color: AppColors.statusEnRoute),
                           foregroundColor: AppColors.statusEnRoute,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        icon:
-                            const Icon(Icons.videocam_outlined, size: 18),
+                        icon: const Icon(Icons.videocam_outlined, size: 18),
                         label: const Text('Video Call',
-                            style:
-                                TextStyle(fontWeight: FontWeight.w600)),
+                            style: TextStyle(fontWeight: FontWeight.w600)),
                       ),
                     ),
                   ],
@@ -1411,15 +1388,13 @@ class _ActiveIncidentCardState
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white),
+                                  strokeWidth: 2, color: Colors.white),
                             )
                           : Icon(buttonIcon),
                       label: Text(
                         buttonLabel,
                         style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600),
+                            fontSize: 15, fontWeight: FontWeight.w600),
                       ),
                     ),
                   ),
@@ -1553,8 +1528,8 @@ class _DriverLiveMapState extends ConsumerState<_DriverLiveMap> {
                     color: Colors.black.withValues(alpha: 0.2), blurRadius: 4),
               ],
             ),
-            child: const Icon(Icons.local_hospital,
-                color: Colors.white, size: 20),
+            child:
+                const Icon(Icons.local_hospital, color: Colors.white, size: 20),
           ),
         ),
       ));
@@ -1579,8 +1554,8 @@ class _DriverLiveMapState extends ConsumerState<_DriverLiveMap> {
                     blurRadius: 10),
               ],
             ),
-            child:
-                const Icon(Icons.airport_shuttle, color: Colors.white, size: 20),
+            child: const Icon(Icons.airport_shuttle,
+                color: Colors.white, size: 20),
           ),
         ),
       ));
@@ -1589,8 +1564,7 @@ class _DriverLiveMapState extends ConsumerState<_DriverLiveMap> {
     // Default centre: driver's GPS → first incident → Kampala
     final defaultCenter = driverLat != null && driverLng != null
         ? LatLng(driverLat, driverLng)
-        : widget.incidents.isNotEmpty &&
-                widget.incidents.first.latitude != null
+        : widget.incidents.isNotEmpty && widget.incidents.first.latitude != null
             ? LatLng(widget.incidents.first.latitude!,
                 widget.incidents.first.longitude!)
             : const LatLng(0.3476, 32.5825); // Kampala
@@ -1657,15 +1631,15 @@ class _DriverLiveMapState extends ConsumerState<_DriverLiveMap> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const _LegendRow(AppColors.primary, Icons.person_pin_circle,
-                    'Your patient'),
+                const _LegendRow(
+                    AppColors.primary, Icons.person_pin_circle, 'Your patient'),
                 const SizedBox(height: 4),
-                const _LegendRow(AppColors.error, Icons.emergency_outlined,
-                    'Other calls'),
+                const _LegendRow(
+                    AppColors.error, Icons.emergency_outlined, 'Other calls'),
                 if (hospital != null) ...[
                   const SizedBox(height: 4),
-                  const _LegendRow(AppColors.secondary, Icons.local_hospital,
-                      'Hospital'),
+                  const _LegendRow(
+                      AppColors.secondary, Icons.local_hospital, 'Hospital'),
                 ],
                 if (driverLat != null) ...[
                   const SizedBox(height: 4),
@@ -1681,8 +1655,7 @@ class _DriverLiveMapState extends ConsumerState<_DriverLiveMap> {
           top: 10,
           left: 10,
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: AppColors.statusAvailable,
               borderRadius: BorderRadius.circular(20),
@@ -1745,8 +1718,8 @@ class _LegendRow extends StatelessWidget {
         ),
         const SizedBox(width: 6),
         Text(label,
-            style: const TextStyle(
-                fontSize: 11, color: AppColors.textSecondary)),
+            style:
+                const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
       ],
     );
   }
@@ -1773,9 +1746,7 @@ class _DetailRow extends StatelessWidget {
           Icon(
             icon,
             size: 16,
-            color: highlight
-                ? AppColors.primary
-                : AppColors.textSecondary,
+            color: highlight ? AppColors.primary : AppColors.textSecondary,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1783,12 +1754,9 @@ class _DetailRow extends StatelessWidget {
               text,
               style: TextStyle(
                 fontSize: 13,
-                color: highlight
-                    ? AppColors.textPrimary
-                    : AppColors.textSecondary,
-                fontWeight: highlight
-                    ? FontWeight.w500
-                    : FontWeight.normal,
+                color:
+                    highlight ? AppColors.textPrimary : AppColors.textSecondary,
+                fontWeight: highlight ? FontWeight.w500 : FontWeight.normal,
               ),
             ),
           ),
