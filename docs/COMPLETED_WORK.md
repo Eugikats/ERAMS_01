@@ -635,3 +635,19 @@ explains why Realtime alone can't be trusted there). Added the same explicit
 driver's own action regardless of Realtime timing. Needs the same live
 click-through: Accept should now instantly reveal the patient's active
 incident card and the Chat/Voice Call/Video Call buttons.
+
+**Second follow-up (same day):** team confirmed, on a real Android build,
+that after Accept the active-incident card (and its Chat/Voice/Video Call
+buttons — these are unconditional inside `_ActiveIncidentCard`, not gated
+separately) was still not appearing. `advanceStatus()`, the notifier method
+behind the "I'm En Route" / "I've Arrived" / "Incident Complete" button, had
+the exact same latent bug as `acceptOffer()` did before its fix above — it
+mutated the incident's status via `update_incident_status` and then relied
+purely on Realtime to reflect that back, with no manual refresh. Added the
+same `await _refresh();` there for consistency, so every driver-initiated
+status transition self-updates regardless of Realtime timing, not just
+Accept. If the buttons are still missing after this on a rebuilt APK, the
+next thing to check is whether Realtime is reachable at all from the test
+device's network (some mobile carriers/firewalls block the WebSocket
+upgrade) — that would affect every Realtime-only path project-wide, not
+just this one.

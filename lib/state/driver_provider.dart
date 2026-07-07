@@ -146,7 +146,9 @@ class DriverIncidentNotifier extends AsyncNotifier<Incident?> {
     };
     if (next == null) return;
     await DriverService().updateIncidentStatus(incident.id, next);
-    // Realtime subscription will refresh state
+    // Same reasoning as acceptOffer(): don't rely solely on Realtime to
+    // reflect the driver's own action back to them.
+    await _refresh();
   }
 }
 
