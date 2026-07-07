@@ -584,3 +584,41 @@ As of 3 Jul 2026, the entire patient portal is built except **Phase 14 (mobile m
 ---
 
 *Last updated: 4 July 2026 — `flutter analyze` re-verified clean (0 issues); full code-trace of the patient portal request→accept→track→complete→rate loop confirmed correctly wired end-to-end (no live-app credentials available in this environment, so this supplements rather than replaces a real click-through). Only the live smoke test and `v2.0-complete` tag remain as team actions. Phases 0–13 and 15–18 confirmed complete (migrations verified pushed via CI); Live Map views (admin/driver/hospital) documented; Phase 14 (mobile money) explicitly deferred by team decision.*
+
+---
+
+## Driver — Job Offer Pop-up ✓ Added
+
+*Bug fix, 7 Jul 2026 — not tied to a numbered phase.*
+
+The Accept/Decline UI (`_JobOfferCard`, 30s countdown) and the in-trip
+communication buttons (Chat / Voice Call / Video Call in `_ActiveIncidentCard`)
+already existed in `driver_screen.dart`, but the offer only ever rendered as
+an inline card on the **Active** tab. A driver on the Chats or History tab
+(or one who just opened the app) had no indication a request had arrived;
+the 30s countdown silently auto-declined it via `declineOffer()`, so they
+never reached the accepted-trip screen where the call/chat buttons live —
+matching the reporter's exact complaint ("no accept/deny, no communication
+buttons").
+
+- [x] `_JobOfferDialog`: modal (`showDialog`, `barrierDismissible: false`,
+      `PopScope(canPop: false)`) that pops up the instant `driverIncidentProvider`
+      reports a new `pending_acceptance` incident, regardless of active tab.
+      Wraps the existing `_JobOfferCard`, so Accept/Decline/countdown logic is
+      unchanged. Auto-closes itself once the offer resolves (accepted, declined,
+      reassigned elsewhere, or timed out).
+- [x] `_JobOfferPendingNotice`: the Active tab now shows a lightweight "New job
+      offer — Respond Now" placeholder instead of a second live countdown card,
+      so there's exactly one countdown/decline path instead of two racing timers.
+- [x] Dedup guard (`_lastOfferDialogIncidentId`) so Realtime churn doesn't reopen
+      the dialog for the same offer, but a genuinely new offer still triggers it.
+
+### Needs Team Testing
+- `flutter analyze`: 0 issues (verified in this session).
+- No live Supabase credentials available in this environment (no `.env.json`) —
+  this change has **not** been click-through tested against a real backend.
+  Team should verify: patient selects a specific ambulance → the assigned
+  driver, while sitting on the Chats or History tab, immediately sees the
+  pop-up (not just the Active tab) → Accept dispatches the trip and reveals
+  Chat/Voice Call/Video Call → Decline (or letting the 30s countdown expire)
+  closes the pop-up and reassigns to the next ambulance.

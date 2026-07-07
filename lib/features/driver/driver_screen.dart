@@ -37,6 +37,9 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
   List<Map<String, dynamic>> _historyRows = [];
   bool _historyLoading = false;
   String? _historyError;
+  // Tracks which offer we've already popped a dialog for, so Realtime churn
+  // doesn't reopen it and so it's eligible again once this offer resolves.
+  String? _lastOfferDialogIncidentId;
 
   @override
   void initState() {
@@ -115,12 +118,36 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
     }
   }
 
+  void _showJobOfferDialog(String incidentId) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _JobOfferDialog(incidentId: incidentId),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ambulanceAsync = ref.watch(driverAmbulanceProvider);
     final incidentAsync = ref.watch(driverIncidentProvider);
     final profile = ref.watch(currentProfileProvider).valueOrNull;
     final gpsActive = ref.watch(gpsActiveProvider);
+
+    // Pop up a modal the instant a new job offer arrives, no matter which
+    // tab the driver is looking at (Active / Chats / History) — a 30s
+    // countdown they shouldn't be able to miss just by being on Chats.
+    ref.listen<AsyncValue<Incident?>>(driverIncidentProvider, (prev, next) {
+      final incident = next.valueOrNull;
+      if (incident == null || incident.status != IncidentStatus.pendingAcceptance) {
+        _lastOfferDialogIncidentId = null;
+        return;
+      }
+      if (_lastOfferDialogIncidentId == incident.id) return;
+      _lastOfferDialogIncidentId = incident.id;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showJobOfferDialog(incident.id);
+      });
+    });
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -244,7 +271,11 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
                           }
                           if (incident.status ==
                               IncidentStatus.pendingAcceptance) {
-                            return _JobOfferCard(incident: incident);
+                            return _JobOfferPendingNotice(
+                              incident: incident,
+                              onRespond: () =>
+                                  _showJobOfferDialog(incident.id),
+                            );
                           }
                           return _ActiveIncidentCard(incident: incident);
                         },
@@ -608,6 +639,118 @@ class _StatusButton extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Job offer pop-up — modal dialog shown the instant an offer arrives,
+// regardless of which tab the driver is on. Not dismissible except by
+// accepting/declining (or the 30s auto-decline) inside _JobOfferCard.
+// ---------------------------------------------------------------------------
+
+class _JobOfferDialog extends ConsumerWidget {
+  final String incidentId;
+  const _JobOfferDialog({required this.incidentId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final incident = ref.watch(driverIncidentProvider).valueOrNull;
+    final stillOffered = incident != null &&
+        incident.id == incidentId &&
+        incident.status == IncidentStatus.pendingAcceptance;
+
+    // Offer was accepted/declined/timed-out elsewhere (e.g. the countdown
+    // hit zero) — close the dialog on the next frame rather than mid-build.
+    if (!stillOffered) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final navigator = Navigator.of(context);
+        if (navigator.canPop()) navigator.pop();
+      });
+      return const SizedBox.shrink();
+    }
+
+    return PopScope(
+      canPop: false,
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        insetPadding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: _JobOfferCard(incident: incident),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Inline placeholder shown on the Active tab while the pop-up owns the
+// actual Accept/Decline interaction (avoids two independent countdowns
+// racing to decline the same offer).
+// ---------------------------------------------------------------------------
+
+class _JobOfferPendingNotice extends StatelessWidget {
+  final Incident incident;
+  final VoidCallback onRespond;
+
+  const _JobOfferPendingNotice({
+    required this.incident,
+    required this.onRespond,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.statusPending.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border:
+            Border.all(color: AppColors.statusPending.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.notification_important_outlined,
+              color: AppColors.statusPending, size: 40),
+          const SizedBox(height: 10),
+          const Text(
+            'New job offer',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            incident.natureOfEmergency.isEmpty
+                ? 'Emergency'
+                : incident.natureOfEmergency,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                fontSize: 13, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: onRespond,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.statusPending,
+                minimumSize: const Size(0, 46),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.campaign_outlined, size: 18),
+              label: const Text('Respond Now',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
       ),
     );
   }
