@@ -218,20 +218,28 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
               .where((i) => i.status.isActive)
               .toList();
 
+          // Once a job is accepted (dispatched/en_route/arrived), the patient
+          // card + communication channels live in the bottom panel. Give that
+          // panel the majority of the screen so the card is fully visible
+          // instead of being pushed below the fold under the header/status.
+          final assignedIncident = incidentAsync.valueOrNull;
+          final hasActiveCard = assignedIncident != null &&
+              assignedIncident.status != IncidentStatus.pendingAcceptance;
+
           return Column(
             children: [
-              // ── Top half: live map ──────────────────────────────
+              // ── Live map (shrinks once a job is active) ─────────
               Expanded(
-                flex: 1,
+                flex: hasActiveCard ? 2 : 1,
                 child: _DriverLiveMap(
                   ambulance: ambulance,
                   incidents: activeIncidents,
                   assignedIncident: incidentAsync.valueOrNull,
                 ),
               ),
-              // ── Bottom half: header + card ──────────────────────
+              // ── Header + status + active-incident card ──────────
               Expanded(
-                flex: 1,
+                flex: hasActiveCard ? 3 : 1,
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -1245,7 +1253,27 @@ class _ActiveIncidentCardState
                     ),
                   ),
                 ),
-              // Chat with patient/dispatcher
+              // ── Communication options with the patient ──────────
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 14, 16, 2),
+                child: Row(
+                  children: [
+                    Icon(Icons.forum_outlined,
+                        size: 14, color: AppColors.textSecondary),
+                    SizedBox(width: 6),
+                    Text(
+                      'COMMUNICATE WITH PATIENT',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textSecondary,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Chat with patient
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                 child: Builder(
