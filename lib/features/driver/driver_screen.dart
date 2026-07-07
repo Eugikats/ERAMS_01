@@ -1120,6 +1120,24 @@ class _ActiveIncidentCardState
         : const AsyncData<Hospital?>(null);
     final hospitalName = hospitalAsync.valueOrNull?.name;
 
+    // Live road distance/ETA from the driver's current GPS fix to the
+    // patient — same OSRM route the live map draws, reused here so the
+    // card shows it without a second network round trip.
+    final ambulancePos = ref.watch(driverAmbulanceProvider).valueOrNull;
+    final patientLat = incident.latitude;
+    final patientLng = incident.longitude;
+    final route = (ambulancePos?.latitude != null &&
+            ambulancePos?.longitude != null &&
+            patientLat != null &&
+            patientLng != null)
+        ? ref
+            .watch(routeProvider(routeCacheKey(
+              LatLng(ambulancePos!.latitude!, ambulancePos.longitude!),
+              LatLng(patientLat, patientLng),
+            )))
+            .valueOrNull
+        : null;
+
     final (buttonLabel, buttonIcon, buttonColor) =
         switch (incident.status) {
       IncidentStatus.dispatched => (
@@ -1207,6 +1225,12 @@ class _ActiveIncidentCardState
                     if (incident.locationDescription.isNotEmpty)
                       _DetailRow(Icons.place_outlined,
                           incident.locationDescription),
+                    if (route != null)
+                      _DetailRow(
+                        Icons.route_outlined,
+                        '${route.distanceKm.toStringAsFixed(1)} km away'
+                        '  ·  ~${route.durationMin.round()} min',
+                      ),
                     _DetailRow(
                       Icons.person_outline,
                       incident.reporterName.isEmpty
