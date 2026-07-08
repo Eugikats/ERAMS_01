@@ -17,6 +17,7 @@ import '../../state/message_provider.dart';
 import '../../widgets/app_logo.dart';
 import '../../widgets/chat_sheet.dart';
 import '../../widgets/incident_history_list.dart';
+import '../../widgets/incident_routes_layer.dart';
 import '../../widgets/profile_edit_sheet.dart';
 import '../../widgets/status_badge.dart';
 import 'manual_dispatch_dialog.dart';
@@ -925,6 +926,12 @@ class _MapPanel extends StatelessWidget {
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.erams.erams',
             ),
+            // Highlighted shortest route from each accepted ambulance to its
+            // patient (drawn under the markers).
+            IncidentRoutesLayer(
+              incidents: incidents,
+              ambulances: ambulances,
+            ),
             // Hospital markers
             MarkerLayer(markers: _hospitalMarkers(hospitals)),
             // Ambulance markers
@@ -1090,6 +1097,8 @@ class _MapLegend extends StatelessWidget {
           _LegendItem(color: AppColors.statusDispatched, icon: Icons.airport_shuttle, label: 'Dispatched'),
           SizedBox(height: 6),
           _LegendItem(color: AppColors.statusEnRoute, icon: Icons.airport_shuttle, label: 'En Route'),
+          SizedBox(height: 6),
+          _LegendItem(color: AppColors.statusEnRoute, icon: Icons.route, label: 'Route to patient'),
         ],
       ),
     );
