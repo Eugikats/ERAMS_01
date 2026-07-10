@@ -4,7 +4,7 @@
 ![Supabase](https://img.shields.io/badge/Supabase-Backend-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-Hosting-FFCA28?style=flat-square&logo=firebase&logoColor=black)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-![Status](https://img.shields.io/badge/Status-Phase_19_in_progress-yellow?style=flat-square)
+![Status](https://img.shields.io/badge/Status-v2.0--complete-brightgreen?style=flat-square)
 
 > **Final Year Project — Bachelor of Information Technology and Computing**  
 > Kyambogo University | Uganda | Academic Year 2025–2026
@@ -367,6 +367,7 @@ ERAMS_01/
 - **Desktop native build** (Windows/macOS) is not a target. The "desktop" experience is the responsive web app viewed in a browser.
 - **Push notifications** (FCM) are not implemented. Drivers receive alerts only while the app is open; SMS (Africa's Talking) is the fallback channel for anyone not actively watching the app.
 - **Multi-dispatch** (one incident, multiple ambulances) is not supported. Each incident has a single `assigned_ambulance_id`.
+- **No live click-through smoke test was performed before tagging `v2.0-complete`.** The tag reflects static verification only (analyzer, tests, code-trace) — see the Phase 19 note above.
 
 ---
 
@@ -402,9 +403,11 @@ flutter test
 | 17 | DHIS2 export & analytics enhancements | ✓ Complete |
 | 18 | Voice & video calls (Agora) | ✓ Complete |
 | — | Live Map views (admin, driver, hospital) | ✓ Complete |
-| 19 | Final validation, diagrams, evaluation form Section G, `v2.0-complete` tag | In progress |
+| 19 | Final validation, diagrams, evaluation form Section G, `v2.0-complete` tag | ✓ Complete (static sign-off — see below) |
 
 Full phase specifications and progress: [`docs/COMPLETED_WORK.md`](docs/COMPLETED_WORK.md)
+
+**Note on Phase 19 sign-off:** the live, click-through smoke test was waived by team decision (10 Jul 2026) rather than left indefinitely blocking the tag — no environment in this project's toolchain had real credentials for the live Supabase project or a way to drive the web UI directly. Phase 19 closes on static verification instead: `flutter analyze` (0 issues), `flutter test` (passing), and a full code-trace of the patient request→accept→track→complete→rate loop. This is an accepted-risk decision — the driver-side realtime fixes from 7–8 Jul (job-offer modal, GPS-tick flicker fix, patient polling backstop, live-map route highlighting) were verified only by code-trace, never against production. See `docs/COMPLETED_WORK.md` Phase 19 for the full note.
 
 ---
 

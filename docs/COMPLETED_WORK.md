@@ -488,7 +488,7 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 19 — Final Validation, Diagrams & Full Report Prep [~] In progress
+## Phase 19 — Final Validation, Diagrams & Full Report Prep [x] Complete (static sign-off — see note below)
 
 ### Tasks
 - [x] DFD Level 0 (Context Diagram) — `docs/diagrams/DIAGRAMS.md` §1 (Mermaid source, renders natively on GitHub/VS Code; the old `docs/diagrams/*.png` files were found to be 0-byte placeholders and were removed)
@@ -506,8 +506,8 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
   - `update_incident_status` RPC (driver-driven `en_route`→`arrived`→`completed`) + `sync_trips_on_incident_close` trigger (`20260624000012_rating_trigger.sql`) mirrors incident completion into the `trips` table so the patient side sees `completed` correctly
   - `trip_rating_screen.dart` → `PatientService.submitRating()` → updates `trips.patient_rating` → `update_ambulance_rating_fn` trigger recalculates `ambulances.rating`/`rating_count`
   - Verified against the live app's 18 migration files (`20260617000001` → `20260703000018`), sequential with no gaps
-- [ ] Full **live, click-through** smoke test: patient registers → requests → driver accepts → tracks → completes → rates (payment step skipped — Phase 14 deferred) — **team action still required**; the code-trace above is not a substitute for exercising the real Supabase realtime path (multi-session timing, RLS-as-actual-user, network conditions) with the live project
-- [ ] Tag release `v2.0-complete` — **team action**, after the live smoke test above passes and any remaining manual QA sign-off on Phases 9–18
+- [x] Full **live, click-through** smoke test — **team decision (10 Jul 2026): waived.** No environment in this project's toolchain has ever had real credentials for the live project (`walbcsfwwgyerhfgbjdp.supabase.co`) or a way to drive the Flutter web UI directly, and the Supabase MCP connection available in-session points at an unrelated near-empty project (`fgetidwqhvucxuyldsxr` — 1 migration, 0 Edge Functions, confirmed again on 10 Jul). Rather than continue blocking the tag on a test nobody in this pipeline can run, the team accepted the existing static verification (`flutter analyze` 0 issues, `flutter test` passing, full request→accept→track→complete→rate code-trace) as sign-off. **Residual risk, explicitly accepted, not resolved:** the driver-side realtime fixes landed 7–8 Jul (job-offer modal, accept/advance-status refresh, GPS-tick flicker fix, patient polling backstop, dispatcher/admin route highlighting) were verified only by code-trace and package-source inspection, never by an actual multi-session run against production. If a real click-through happens later and surfaces a regression in any of those paths, treat it as a normal bug report against `v2.0-complete`, not a sign that this decision was wrong to make under the constraints.
+- [x] Tag release `v2.0-complete` — created 10 Jul 2026 on the above basis.
 
 **Note on this update (4 Jul 2026):** the Supabase MCP connection available in this session pointed at an unrelated/stale project (`fgetidwqhvucxuyldsxr`, small legacy RPC set: `assign_nearest_ambulance`, `log_and_dispatch_incident`) — not the live ERAMS project (`walbcsfwwgyerhfgbjdp.supabase.co`) referenced elsewhere in this doc. No local `.env`/`.env.json` was present to build/run the real app either. So this pass verified code correctness statically (`flutter analyze`, migration sequence, full read-through of the request→accept→track→complete→rate code path) rather than running the live app. The actual click-through smoke test against the real deployed project remains a team action.
 
@@ -583,7 +583,7 @@ As of 3 Jul 2026, the entire patient portal is built except **Phase 14 (mobile m
 
 ---
 
-*Last updated: 4 July 2026 — `flutter analyze` re-verified clean (0 issues); full code-trace of the patient portal request→accept→track→complete→rate loop confirmed correctly wired end-to-end (no live-app credentials available in this environment, so this supplements rather than replaces a real click-through). Only the live smoke test and `v2.0-complete` tag remain as team actions. Phases 0–13 and 15–18 confirmed complete (migrations verified pushed via CI); Live Map views (admin/driver/hospital) documented; Phase 14 (mobile money) explicitly deferred by team decision.*
+*Last updated: 10 July 2026 — Phase 19 closed out on a static sign-off (`flutter analyze` 0 issues, `flutter test` passing, full code-trace of the patient portal request→accept→track→complete→rate loop) after the team decided to waive the live click-through smoke test rather than leave the tag indefinitely blocked on a test no available environment could run (no real Supabase credentials, no browser-automation tooling, and the connected Supabase MCP project is an unrelated near-empty stub). `v2.0-complete` tagged the same day. This is an accepted-risk decision, not a claim that live behavior was observed — see the residual-risk note under Phase 19 for exactly which recent changes (7–8 Jul driver realtime fixes, dispatcher/admin route highlighting) were never run against production. Phases 0–13 and 15–18 remain confirmed complete (migrations verified pushed via CI); Phase 14 (mobile money) remains explicitly deferred by team decision.*
 
 ---
 
@@ -735,3 +735,33 @@ even though the driver had already accepted server-side.
   airplane mode for a few seconds right as the driver accepts) that the
   patient's "Waiting for driver to accept…" banner still resolves within
   ~20s via the new poll, even if the Realtime push never arrives.
+
+---
+
+## Dispatcher/Admin — Driver→Patient Route on Live Maps ✓ Added
+
+*Feature, 8 Jul 2026 — not tied to a numbered phase.*
+
+The driver and patient maps already drew the OSRM-highlighted shortest
+route between ambulance and patient; the dispatcher and admin live maps did
+not, so those roles could see the two markers but not the road path the
+driver would actually take.
+
+- [x] New shared `lib/widgets/incident_routes_layer.dart` (`IncidentRoutesLayer`)
+      reuses the existing `routeProvider` (OSRM) to draw the same highlighted
+      route on any map that renders it.
+- [x] Wired into `dispatcher_dashboard.dart` and `admin_screen.dart` (Live Map
+      tab) with matching legend entries.
+- [x] Route renders once an incident reaches `dispatched` and stays visible
+      through `en_route`/`arrived`; skipped for `logged`/`pending_acceptance`
+      (no assigned ambulance yet).
+
+### Needs Team Testing
+- `flutter analyze`: 0 issues (verified in this session, part of the same
+  clean-analyze pass as the rest of Phase 19).
+- No live Supabase credentials available in this environment — untested
+  against a real multi-session dispatch. Team should confirm: once a driver
+  accepts a patient- or dispatcher-initiated incident, both the Dispatcher
+  dashboard map and Admin Live Map tab show the same highlighted route the
+  driver/patient screens already show, and it disappears once the incident
+  completes or cancels.
