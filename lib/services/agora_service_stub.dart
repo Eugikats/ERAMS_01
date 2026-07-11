@@ -19,7 +19,7 @@ class AgoraService {
   // ignore: use_setters_to_change_properties
   set onError(void Function(int code, String msg)? _) {}
 
-  Future<void> initialize({bool withVideo = true}) async {}
+  Future<void> initialize({String? appId, bool withVideo = true}) async {}
   Future<void> joinChannel(String channelId, {bool withVideo = true}) async {}
   Future<void> toggleMute() async {}
   Future<void> toggleVideo() async {}

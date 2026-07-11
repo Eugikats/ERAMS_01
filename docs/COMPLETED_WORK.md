@@ -469,6 +469,12 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 - [x] Android permissions: `RECORD_AUDIO`, `CAMERA`, `MODIFY_AUDIO_SETTINGS`, `BLUETOOTH`, `BLUETOOTH_CONNECT` in `AndroidManifest.xml`; `android.hardware.camera` and `android.hardware.microphone` features marked `required="false"`
 - [x] Web graceful degradation: web shows "Voice/video calling requires the ERAMS mobile app" instead of crashing
 
+### Fixes (2026-07-11) — "Call error(25)" / error 110 invalid token
+- [x] **Root cause:** `generate_agora_token` derived the AccessToken2 signing key with the HMAC key/message operands swapped (`HMAC(appCertificate, u32(issueTs))` instead of Agora's `HMAC(u32(issueTs), appCertificate)`). HMAC is not symmetric, so the signature was wrong and the Agora server rejected every token with **error 110 (invalid token)**. Verified by byte-for-byte comparison against Agora's official `agora-token` package — the corrected order now produces an identical token.
+- [x] **Client fix:** `agora_service_native.dart` reported `code.index` (enum ordinal) instead of `code.value()` (real Agora code), so error 110 surfaced as the misleading **"Call error(25)"**. Now reports the real code with a human-readable message.
+- [x] **Hardening:** engine is now initialised with the App ID returned by the token endpoint (prevents a token/engine App-ID mismatch — the other cause of 110); added `onTokenPrivilegeWillExpire` → `renewToken` for long calls.
+- [ ] **REQUIRED to take effect — redeploy the Edge Function** to the live project (`walbcsfwwgyerhfgbjdp`): `supabase functions deploy generate_agora_token --project-ref walbcsfwwgyerhfgbjdp`. The client-side change ships with the next APK/web build.
+
 ### Setup Required (team action)
 1. Create an Agora project at console.agora.io — get App ID
 2. Add `AGORA_APP_ID` to Supabase project Edge Function secrets (`supabase secrets set AGORA_APP_ID=...`)

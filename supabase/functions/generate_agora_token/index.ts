@@ -10,7 +10,7 @@ import { corsHeaders } from '../_shared/cors.ts';
 //   signingInfo = putString(appId) + u32(issueTs) + u32(expire) + u32(salt)
 //                 + u16(serviceCount) + services...
 //   signature   = HMAC-SHA256(signingKey, signingInfo)
-//   signingKey  = HMAC-SHA256(HMAC-SHA256(appCertificate, u32(issueTs)), u32(salt))
+//   signingKey  = HMAC-SHA256(u32(salt), HMAC-SHA256(u32(issueTs), appCertificate))
 //   expire / privilege-expire fields are DURATIONS in seconds, not absolute
 //   timestamps — the server adds issueTs itself.
 //
@@ -130,8 +130,14 @@ async function buildRtcToken(
   );
 
   // Two-round HMAC key derivation, then sign signingInfo with the result.
-  const round1 = await hmacSha256(new TextEncoder().encode(appCertificate), p32(issueTs));
-  const signingKey = await hmacSha256(round1, p32(salt));
+  // HMAC is NOT symmetric — HMAC(key, msg) !== HMAC(msg, key) — so the operand
+  // order below must match Agora's reference exactly: round 1 keys on u32(issueTs)
+  // with the appCertificate as the message; round 2 keys on u32(salt) with round 1
+  // as the message. Swapping key/message (as an earlier version did) produces a
+  // different signing key and a signature the Agora server rejects as error 110
+  // (invalid token), which fails the call before it can connect.
+  const round1 = await hmacSha256(p32(issueTs), new TextEncoder().encode(appCertificate));
+  const signingKey = await hmacSha256(p32(salt), round1);
   const signature = await hmacSha256(signingKey, signingInfo);
 
   const content = concat(pBytes(signature), signingInfo);
