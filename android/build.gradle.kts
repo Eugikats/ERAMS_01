@@ -5,6 +5,13 @@ allprojects {
     }
 }
 
+// agora_rtc_engine's android/build.gradle reads rootProject.ext.compileSdkVersion
+// (via safeExtGet), falling back to a hardcoded 31 if unset — too low for its own
+// transitive androidx deps (need 33+). Setting it here on rootProject.extra is
+// visible to that Groovy safeExtGet() lookup since both share the same
+// ExtraPropertiesExtension instance.
+rootProject.extra["compileSdkVersion"] = 36
+
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")

@@ -6,7 +6,9 @@ plugins {
 
 android {
     namespace = "ug.ac.kyu.erams"
-    compileSdk = flutter.compileSdkVersion
+    // agora_rtc_engine's transitive androidx deps require compileSdk 33+;
+    // flutter.compileSdkVersion resolves too low for this Flutter version.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
