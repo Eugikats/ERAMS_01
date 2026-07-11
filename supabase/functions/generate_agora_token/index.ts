@@ -2,11 +2,24 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 
 // ---------------------------------------------------------------------------
-// Agora AccessToken2 builder
-// Reference: https://github.com/AgoraIO/Tools/tree/master/DynamicKey/AgoraDynamicKey
+// Agora AccessToken2 builder — faithful port of Agora's own reference
+// implementation:
+// https://github.com/AgoraIO/Tools/blob/master/DynamicKey/AgoraDynamicKey/nodejs/src/AccessToken2.js
 //
-// Token format: "007" + base64( HMAC-SHA256(body) + body )
-// Body: appId + expire + salt + issueTs + services
+// Wire format: "007" + base64( zlib_deflate( putBytes(signature) + signingInfo ) )
+//   signingInfo = putString(appId) + u32(issueTs) + u32(expire) + u32(salt)
+//                 + u16(serviceCount) + services...
+//   signature   = HMAC-SHA256(signingKey, signingInfo)
+//   signingKey  = HMAC-SHA256(HMAC-SHA256(appCertificate, u32(issueTs)), u32(salt))
+//   expire / privilege-expire fields are DURATIONS in seconds, not absolute
+//   timestamps — the server adds issueTs itself.
+//
+// This project's first implementation skipped the zlib-deflate step, used
+// appCertificate directly as the HMAC key instead of the required two-round
+// derivation, put the signingInfo fields in the wrong order, didn't
+// length-prefix the signature, and sent absolute timestamps instead of
+// durations — any one of these alone is enough to make Agora's server reject
+// the token as invalid, which is what was happening.
 // ---------------------------------------------------------------------------
 
 function concat(...arrays: Uint8Array[]): Uint8Array {
@@ -28,15 +41,48 @@ function p32(v: number): Uint8Array {
   ]);
 }
 
+function pBytes(bytes: Uint8Array): Uint8Array {
+  return concat(p16(bytes.length), bytes);
+}
+
 function pStr(s: string): Uint8Array {
-  const enc = new TextEncoder().encode(s);
-  return concat(p16(enc.length), enc);
+  return pBytes(new TextEncoder().encode(s));
 }
 
 function toBase64(bytes: Uint8Array): string {
   let binary = '';
   for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
   return btoa(binary);
+}
+
+async function hmacSha256(key: Uint8Array, message: Uint8Array): Promise<Uint8Array> {
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    key,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  return new Uint8Array(await crypto.subtle.sign('HMAC', cryptoKey, message));
+}
+
+// Agora's wire format requires the signing_info to be zlib (RFC 1950)
+// compressed before base64 encoding. The Web Compression Streams API's
+// 'deflate' format is specifically the zlib format (not raw deflate, not
+// gzip), matching Node's zlib.deflateSync used by Agora's own reference impl.
+async function deflateZlib(data: Uint8Array): Promise<Uint8Array> {
+  const cs = new CompressionStream('deflate');
+  const writer = cs.writable.getWriter();
+  const writeDone = writer.write(data).then(() => writer.close());
+  const chunks: Uint8Array[] = [];
+  const reader = cs.readable.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) chunks.push(value);
+  }
+  await writeDone;
+  return concat(...chunks);
 }
 
 // Privilege types for ServiceRtc
@@ -53,21 +99,18 @@ async function buildRtcToken(
   tokenExpireSecs: number,
   privilegeExpireSecs: number,
 ): Promise<string> {
-  const salt = Math.floor(Math.random() * 0xffffffff) + 1;
+  const salt = Math.floor(Math.random() * 99999999) + 1;
   const issueTs = Math.floor(Date.now() / 1000);
-  const expire = issueTs + tokenExpireSecs;
-  const privExpire = issueTs + privilegeExpireSecs;
   const uidStr = uid === 0 ? '' : String(uid);
 
-  // Pack privileges: [1=join, 2=pub_audio, 3=pub_video, 4=pub_data]
+  // ServiceRtc body: type + privileges (all granted for the same duration,
+  // matching Agora's own buildTokenWithUid "publisher" convention) + channelName + uid
   const privs: [number, number][] = [
-    [PRIV_JOIN, privExpire],
-    [PRIV_PUB_AUDIO, privExpire],
-    [PRIV_PUB_VIDEO, privExpire],
-    [PRIV_PUB_DATA, privExpire],
+    [PRIV_JOIN, privilegeExpireSecs],
+    [PRIV_PUB_AUDIO, privilegeExpireSecs],
+    [PRIV_PUB_VIDEO, privilegeExpireSecs],
+    [PRIV_PUB_DATA, privilegeExpireSecs],
   ];
-
-  // ServiceRtc body: type + privileges + channelName + uid
   const serviceBody = concat(
     p16(1),              // service type = RTC (1)
     p16(privs.length),
@@ -76,28 +119,24 @@ async function buildRtcToken(
     pStr(uidStr),
   );
 
-  // Main body: appId + expire + salt + issueTs + num_services + service
-  const body = concat(
+  // signingInfo: appId + issueTs + expire + salt + num_services + service
+  const signingInfo = concat(
     pStr(appId),
-    p32(expire),
-    p32(salt),
     p32(issueTs),
+    p32(tokenExpireSecs),
+    p32(salt),
     p16(1),              // 1 service
     serviceBody,
   );
 
-  // HMAC-SHA256 signature over body, keyed with appCertificate bytes
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(appCertificate),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, body));
+  // Two-round HMAC key derivation, then sign signingInfo with the result.
+  const round1 = await hmacSha256(new TextEncoder().encode(appCertificate), p32(issueTs));
+  const signingKey = await hmacSha256(round1, p32(salt));
+  const signature = await hmacSha256(signingKey, signingInfo);
 
-  // Token = "007" + base64(signature + body)
-  return '007' + toBase64(concat(sig, body));
+  const content = concat(pBytes(signature), signingInfo);
+  const compressed = await deflateZlib(content);
+  return '007' + toBase64(compressed);
 }
 
 // ---------------------------------------------------------------------------
