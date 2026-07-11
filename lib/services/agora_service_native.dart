@@ -62,7 +62,11 @@ class AgoraService {
     } else {
       await _engine!.disableVideo();
     }
-    await _engine!.setEnableSpeakerphone(true);
+    // setEnableSpeakerphone() switches the *active* audio route and requires
+    // a live session — calling it before joinChannel() throws ERR_NOT_READY
+    // (-3) on Android. setDefaultAudioRouteToSpeakerphone() sets the default
+    // route pre-join instead, which is what's needed here.
+    await _engine!.setDefaultAudioRouteToSpeakerphone(true);
   }
 
   Future<void> joinChannel(String channelId, {bool withVideo = true}) async {
