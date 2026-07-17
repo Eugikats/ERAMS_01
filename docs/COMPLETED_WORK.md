@@ -469,6 +469,12 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 - [x] Android permissions: `RECORD_AUDIO`, `CAMERA`, `MODIFY_AUDIO_SETTINGS`, `BLUETOOTH`, `BLUETOOTH_CONNECT` in `AndroidManifest.xml`; `android.hardware.camera` and `android.hardware.microphone` features marked `required="false"`
 - [x] Web graceful degradation: web shows "Voice/video calling requires the ERAMS mobile app" instead of crashing
 
+### Fixes (2026-07-11) — "Call error(25)" / error 110 invalid token
+- [x] **Root cause:** `generate_agora_token` derived the AccessToken2 signing key with the HMAC key/message operands swapped (`HMAC(appCertificate, u32(issueTs))` instead of Agora's `HMAC(u32(issueTs), appCertificate)`). HMAC is not symmetric, so the signature was wrong and the Agora server rejected every token with **error 110 (invalid token)**. Verified by byte-for-byte comparison against Agora's official `agora-token` package — the corrected order now produces an identical token.
+- [x] **Client fix:** `agora_service_native.dart` reported `code.index` (enum ordinal) instead of `code.value()` (real Agora code), so error 110 surfaced as the misleading **"Call error(25)"**. Now reports the real code with a human-readable message.
+- [x] **Hardening:** engine is now initialised with the App ID returned by the token endpoint (prevents a token/engine App-ID mismatch — the other cause of 110); added `onTokenPrivilegeWillExpire` → `renewToken` for long calls.
+- [ ] **REQUIRED to take effect — redeploy the Edge Function** to the live project (`walbcsfwwgyerhfgbjdp`): `supabase functions deploy generate_agora_token --project-ref walbcsfwwgyerhfgbjdp`. The client-side change ships with the next APK/web build.
+
 ### Setup Required (team action)
 1. Create an Agora project at console.agora.io — get App ID
 2. Add `AGORA_APP_ID` to Supabase project Edge Function secrets (`supabase secrets set AGORA_APP_ID=...`)
@@ -488,7 +494,7 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 
 ---
 
-## Phase 19 — Final Validation, Diagrams & Full Report Prep [~] In progress
+## Phase 19 — Final Validation, Diagrams & Full Report Prep [x] Complete (static sign-off — see note below)
 
 ### Tasks
 - [x] DFD Level 0 (Context Diagram) — `docs/diagrams/DIAGRAMS.md` §1 (Mermaid source, renders natively on GitHub/VS Code; the old `docs/diagrams/*.png` files were found to be 0-byte placeholders and were removed)
@@ -497,8 +503,19 @@ Update this file as work completes. For each `[x]` item, add a short note on wha
 - [x] UML Sequence Diagrams: patient booking flow (§4), payment flow (§5, marked as planned/not-yet-built since Phase 14 is deferred), dispatcher flow (§6) — all in `docs/diagrams/DIAGRAMS.md`
 - [x] Updated `EVALUATION_FORM.md`: added Section G for patient experience (9 statements + payment-expectation question); evaluator-role line now includes Patient
 - [x] Updated README: 5-role architecture diagram, ERD (trips/messages/marketplace fields), Edge Functions, Africa's Talking/Agora secrets setup, full Phase 0–19 status table, known-limitations note on deferred Flutterwave
-- [ ] Full smoke test: patient registers → requests → driver accepts → tracks → completes → rates (payment step skipped — Phase 14 deferred) — **team action**
-- [ ] Tag release `v2.0-complete` — **team action**, after smoke test and any remaining manual QA sign-off on Phases 9–18
+- [x] `flutter analyze` — 0 issues (re-verified 4 Jul 2026)
+- [x] **Code-trace verification of the full patient portal loop** (substitute for a live click-through — no `.env`/`.env.json` credentials were available in this environment to run the real app; see note below): traced every file and RPC in the chain end-to-end and confirmed the wiring is correct with no gaps —
+  - `patient_register_screen.dart` → `AuthService.registerPatient()` → `/patient` redirect
+  - `new_request_form.dart` → `ambulance_picker_screen.dart` → `PatientService.createPatientIncident()` → `dispatch_incident(p_patient_id=...)` RPC → incident `pending_acceptance` + new `trips` row `status='requested'` (`20260624000011_patient_request.sql`)
+  - Driver `_JobOfferCard` (30s countdown) → `acceptTrip`/`declineTrip` RPCs — accept moves incident to `dispatched` + trip to `accepted`; decline re-offers to the next-nearest ambulance via PostGIS and inserts a fresh `requested` trip row, or resets the incident to `logged` if none are available
+  - `trip_tracking_screen.dart` — realtime-subscribes to the incident and ambulance rows, shows live ETA/distance/status banner; on `completed` shows the completion dialog
+  - `update_incident_status` RPC (driver-driven `en_route`→`arrived`→`completed`) + `sync_trips_on_incident_close` trigger (`20260624000012_rating_trigger.sql`) mirrors incident completion into the `trips` table so the patient side sees `completed` correctly
+  - `trip_rating_screen.dart` → `PatientService.submitRating()` → updates `trips.patient_rating` → `update_ambulance_rating_fn` trigger recalculates `ambulances.rating`/`rating_count`
+  - Verified against the live app's 18 migration files (`20260617000001` → `20260703000018`), sequential with no gaps
+- [x] Full **live, click-through** smoke test — **team decision (10 Jul 2026): waived.** No environment in this project's toolchain has ever had real credentials for the live project (`walbcsfwwgyerhfgbjdp.supabase.co`) or a way to drive the Flutter web UI directly, and the Supabase MCP connection available in-session points at an unrelated near-empty project (`fgetidwqhvucxuyldsxr` — 1 migration, 0 Edge Functions, confirmed again on 10 Jul). Rather than continue blocking the tag on a test nobody in this pipeline can run, the team accepted the existing static verification (`flutter analyze` 0 issues, `flutter test` passing, full request→accept→track→complete→rate code-trace) as sign-off. **Residual risk, explicitly accepted, not resolved:** the driver-side realtime fixes landed 7–8 Jul (job-offer modal, accept/advance-status refresh, GPS-tick flicker fix, patient polling backstop, dispatcher/admin route highlighting) were verified only by code-trace and package-source inspection, never by an actual multi-session run against production. If a real click-through happens later and surfaces a regression in any of those paths, treat it as a normal bug report against `v2.0-complete`, not a sign that this decision was wrong to make under the constraints.
+- [x] Tag release `v2.0-complete` — created 10 Jul 2026 on the above basis.
+
+**Note on this update (4 Jul 2026):** the Supabase MCP connection available in this session pointed at an unrelated/stale project (`fgetidwqhvucxuyldsxr`, small legacy RPC set: `assign_nearest_ambulance`, `log_and_dispatch_incident`) — not the live ERAMS project (`walbcsfwwgyerhfgbjdp.supabase.co`) referenced elsewhere in this doc. No local `.env`/`.env.json` was present to build/run the real app either. So this pass verified code correctness statically (`flutter analyze`, migration sequence, full read-through of the request→accept→track→complete→rate code path) rather than running the live app. The actual click-through smoke test against the real deployed project remains a team action.
 
 ---
 
@@ -572,4 +589,185 @@ As of 3 Jul 2026, the entire patient portal is built except **Phase 14 (mobile m
 
 ---
 
-*Last updated: 3 July 2026 — Phase 19 diagrams (DFDs, use case, sequence flows), Evaluation Form Section G, and README all completed; only the full smoke test and `v2.0-complete` tag remain as team actions. Phases 0–13 and 15–18 confirmed complete (migrations verified pushed via CI); Live Map views (admin/driver/hospital) documented; Phase 14 (mobile money) explicitly deferred by team decision.*
+*Last updated: 10 July 2026 — Phase 19 closed out on a static sign-off (`flutter analyze` 0 issues, `flutter test` passing, full code-trace of the patient portal request→accept→track→complete→rate loop) after the team decided to waive the live click-through smoke test rather than leave the tag indefinitely blocked on a test no available environment could run (no real Supabase credentials, no browser-automation tooling, and the connected Supabase MCP project is an unrelated near-empty stub). `v2.0-complete` tagged the same day. This is an accepted-risk decision, not a claim that live behavior was observed — see the residual-risk note under Phase 19 for exactly which recent changes (7–8 Jul driver realtime fixes, dispatcher/admin route highlighting) were never run against production. Phases 0–13 and 15–18 remain confirmed complete (migrations verified pushed via CI); Phase 14 (mobile money) remains explicitly deferred by team decision.*
+
+---
+
+## Driver — Job Offer Pop-up ✓ Added
+
+*Bug fix, 7 Jul 2026 — not tied to a numbered phase.*
+
+The Accept/Decline UI (`_JobOfferCard`, 30s countdown) and the in-trip
+communication buttons (Chat / Voice Call / Video Call in `_ActiveIncidentCard`)
+already existed in `driver_screen.dart`, but the offer only ever rendered as
+an inline card on the **Active** tab. A driver on the Chats or History tab
+(or one who just opened the app) had no indication a request had arrived;
+the 30s countdown silently auto-declined it via `declineOffer()`, so they
+never reached the accepted-trip screen where the call/chat buttons live —
+matching the reporter's exact complaint ("no accept/deny, no communication
+buttons").
+
+- [x] `_JobOfferDialog`: modal (`showDialog`, `barrierDismissible: false`,
+      `PopScope(canPop: false)`) that pops up the instant `driverIncidentProvider`
+      reports a new `pending_acceptance` incident, regardless of active tab.
+      Wraps the existing `_JobOfferCard`, so Accept/Decline/countdown logic is
+      unchanged. Auto-closes itself once the offer resolves (accepted, declined,
+      reassigned elsewhere, or timed out).
+- [x] `_JobOfferPendingNotice`: the Active tab now shows a lightweight "New job
+      offer — Respond Now" placeholder instead of a second live countdown card,
+      so there's exactly one countdown/decline path instead of two racing timers.
+- [x] Dedup guard (`_lastOfferDialogIncidentId`) so Realtime churn doesn't reopen
+      the dialog for the same offer, but a genuinely new offer still triggers it.
+
+### Needs Team Testing
+- `flutter analyze`: 0 issues (verified in this session).
+- No live Supabase credentials available in this environment (no `.env.json`) —
+  this change has **not** been click-through tested against a real backend.
+  Team should verify: patient selects a specific ambulance → the assigned
+  driver, while sitting on the Chats or History tab, immediately sees the
+  pop-up (not just the Active tab) → Accept dispatches the trip and reveals
+  Chat/Voice Call/Video Call → Decline (or letting the 30s countdown expire)
+  closes the pop-up and reassigns to the next ambulance.
+
+**Follow-up fix (same day):** after the pop-up landed, team testing surfaced
+that tapping **Accept** left the driver stuck — the dialog never closed and
+the active-incident card (patient details + Chat/Voice/Video buttons) never
+appeared. Root cause: `DriverIncidentNotifier.acceptOffer()` in
+`lib/state/driver_provider.dart` relied solely on a Realtime push to refresh
+local state after `accept_trip`, with no fallback — unlike `declineOffer()`
+right below it, which already calls `_refresh()` explicitly (its own comment
+explains why Realtime alone can't be trusted there). Added the same explicit
+`_refresh()` call to `acceptOffer()`, so the UI updates immediately on the
+driver's own action regardless of Realtime timing. Needs the same live
+click-through: Accept should now instantly reveal the patient's active
+incident card and the Chat/Voice Call/Video Call buttons.
+
+**Second follow-up (same day):** team confirmed, on a real Android build,
+that after Accept the active-incident card (and its Chat/Voice/Video Call
+buttons — these are unconditional inside `_ActiveIncidentCard`, not gated
+separately) was still not appearing. `advanceStatus()`, the notifier method
+behind the "I'm En Route" / "I've Arrived" / "Incident Complete" button, had
+the exact same latent bug as `acceptOffer()` did before its fix above — it
+mutated the incident's status via `update_incident_status` and then relied
+purely on Realtime to reflect that back, with no manual refresh. Added the
+same `await _refresh();` there for consistency, so every driver-initiated
+status transition self-updates regardless of Realtime timing, not just
+Accept. If the buttons are still missing after this on a rebuilt APK, the
+next thing to check is whether Realtime is reachable at all from the test
+device's network (some mobile carriers/firewalls block the WebSocket
+upgrade) — that would affect every Realtime-only path project-wide, not
+just this one.
+
+**Third follow-up (same day):** the real cause of "nothing remains on the
+screen after accepting" turned out to be a genuine Riverpod bug, not a
+Realtime reliability issue — verified directly against the installed
+`riverpod-2.6.1` package source, not just inferred. `DriverIncidentNotifier
+.build()` did `await ref.watch(driverAmbulanceProvider.future)`. Every ~15s,
+`GpsNotifier._pushLocation()` writes the driver's GPS position to
+`ambulances.current_location`, which fires `DriverAmbulanceNotifier`'s own
+Realtime callback and reassigns its `state` — and that reassignment
+unconditionally re-notifies `.future` watchers regardless of whether
+anything relevant actually changed. That forced `DriverIncidentNotifier
+.build()` to fully re-run on every GPS tick, and because
+`driver_screen.dart`'s `incidentAsync.when(...)` didn't pass
+`skipLoadingOnReload: true` (default `false`), every one of those reloads
+flashed the `loading` branch — wiping out the entire `_ActiveIncidentCard`
+(patient details + Chat/Voice/Video buttons) to a bare spinner, then back.
+Repeats every ~15s for as long as GPS streams, i.e. continuously once
+dispatched; `advanceStatus()` re-triggers it too since it also touches
+`ambulances.status`.
+
+Fix: swapped `ref.watch` for `ref.read` (no listener registered, so GPS-only
+updates can no longer force a reload), while keeping correctness for the one
+legitimate case an ambulance ID *should* change mid-session — an admin
+reassigning the driver to a different vehicle — via a targeted `ref.listen`
+that only calls `ref.invalidateSelf()` when the ambulance's `id` actually
+differs. Also added `skipLoadingOnReload: true` to the `incidentAsync.when`
+call in `driver_screen.dart` as zero-cost defense-in-depth, and hardened
+`_showJobOfferDialog` to pop any stray overlay (e.g. the profile sheet)
+before presenting a new offer, so it can never be left revealed behind the
+driver screen once the dialog closes.
+
+Known, separate, low-priority limitation noted in passing:
+`DriverAmbulanceNotifier._refresh()` never re-subscribes its Realtime
+channel to a new ambulance id if one is returned by a reassignment — that
+channel stays keyed to the original id from `build()`. Not touched here;
+flagging for a future pass if ambulance reassignment while a driver is
+logged in becomes a real workflow.
+
+### Needs Team Testing
+- `flutter analyze`: 0 issues (verified in this session). Confirmed via grep
+  that `DriverIncidentNotifier.build()` no longer contains any `ref.watch(...)`
+  call.
+- No live Supabase credentials available in this environment — this is a
+  code-trace fix, not a click-through verification. Team should confirm on a
+  real Android build: after Accept, the active-incident card and its
+  Chat/Voice Call/Video Call buttons stay visible and stop flickering over
+  60-90 seconds of GPS updates (previously flashed to a spinner roughly every
+  15s).
+
+---
+
+## Patient — Realtime Polling Fallback ✓ Added
+
+*Bug fix, 7 Jul 2026 — not tied to a numbered phase.*
+
+Same investigation as above surfaced a second, independent gap on the
+patient's side, matching the driver/patient's report that they "don't
+communicate in any way" after pairing. `ActiveIncidentNotifier` in
+`lib/state/patient_provider.dart` only ever refreshed its state from its
+Realtime `onPostgresChanges` callback — no polling backstop, unlike its
+sibling `NearbyAmbulancesNotifier` in the same file, which already has one
+(`Timer.periodic(20s)`) specifically because "a periodic refresh backs up
+Realtime in case events don't arrive." If the driver's acceptance event were
+ever dropped for the patient's client, `trip_tracking_screen.dart` would
+stay on "Waiting for driver to accept…" forever, and the Voice/Video Call
+FABs (gated on status != pending) would never appear on the patient's side —
+even though the driver had already accepted server-side.
+
+- [x] Added the same `Timer.periodic(20s)` backstop to `ActiveIncidentNotifier`,
+      un-debounced (this Realtime source is a single filtered row, not bursty
+      like the ambulance list `NearbyAmbulancesNotifier` polls).
+- [x] Self-terminates once the trip reaches a terminal status
+      (`IncidentStatus.isActive` is `false` only for `completed`/`cancelled`),
+      since this provider isn't `autoDispose` and would otherwise poll a
+      finished incident forever.
+
+### Needs Team Testing
+- `flutter analyze`: 0 issues (verified in this session).
+- No live Supabase credentials available in this environment — this is a
+  code-trace fix. The one scenario a static trace can't fully exercise: team
+  should verify by simulating a dropped Realtime event (e.g. toggling
+  airplane mode for a few seconds right as the driver accepts) that the
+  patient's "Waiting for driver to accept…" banner still resolves within
+  ~20s via the new poll, even if the Realtime push never arrives.
+
+---
+
+## Dispatcher/Admin — Driver→Patient Route on Live Maps ✓ Added
+
+*Feature, 8 Jul 2026 — not tied to a numbered phase.*
+
+The driver and patient maps already drew the OSRM-highlighted shortest
+route between ambulance and patient; the dispatcher and admin live maps did
+not, so those roles could see the two markers but not the road path the
+driver would actually take.
+
+- [x] New shared `lib/widgets/incident_routes_layer.dart` (`IncidentRoutesLayer`)
+      reuses the existing `routeProvider` (OSRM) to draw the same highlighted
+      route on any map that renders it.
+- [x] Wired into `dispatcher_dashboard.dart` and `admin_screen.dart` (Live Map
+      tab) with matching legend entries.
+- [x] Route renders once an incident reaches `dispatched` and stays visible
+      through `en_route`/`arrived`; skipped for `logged`/`pending_acceptance`
+      (no assigned ambulance yet).
+
+### Needs Team Testing
+- `flutter analyze`: 0 issues (verified in this session, part of the same
+  clean-analyze pass as the rest of Phase 19).
+- No live Supabase credentials available in this environment — untested
+  against a real multi-session dispatch. Team should confirm: once a driver
+  accepts a patient- or dispatcher-initiated incident, both the Dispatcher
+  dashboard map and Admin Live Map tab show the same highlighted route the
+  driver/patient screens already show, and it disappears once the incident
+  completes or cancels.

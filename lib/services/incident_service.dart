@@ -14,6 +14,57 @@ class DispatchException implements Exception {
   String toString() => message;
 }
 
+/// Maps a dispatch_incident/cancel_trip PostgrestException to a friendly
+/// DispatchException. Shared by the dispatcher and patient flows, which
+/// both call dispatch_incident under the hood.
+DispatchException parseDispatchError(PostgrestException e) {
+  final msg = e.message.toLowerCase();
+  if (e.code == '42501') {
+    return const DispatchException(
+      'row_level_security',
+      'Your session may have expired or your account isn\'t authorized '
+          'for this action. Please log out and log back in, then try again.',
+    );
+  }
+  if (msg.contains('no_ambulance_available')) {
+    return const DispatchException(
+      'no_ambulance_available',
+      'No available ambulance found. All units are currently busy or offline.',
+    );
+  }
+  if (msg.contains('ambulance_already_busy')) {
+    return const DispatchException(
+      'ambulance_already_busy',
+      'This ambulance was just taken by another request. Please choose another.',
+    );
+  }
+  if (msg.contains('incident_already_dispatched')) {
+    return const DispatchException(
+      'incident_already_dispatched',
+      'This incident has already been dispatched.',
+    );
+  }
+  if (msg.contains('incident_not_found')) {
+    return const DispatchException(
+      'incident_not_found',
+      'Incident not found.',
+    );
+  }
+  if (msg.contains('unauthorized')) {
+    return const DispatchException(
+      'unauthorized',
+      'You do not have permission to perform this action.',
+    );
+  }
+  if (msg.contains('trip_already_closed')) {
+    return const DispatchException(
+      'trip_already_closed',
+      'This trip is already completed or cancelled.',
+    );
+  }
+  return DispatchException('unknown', e.message);
+}
+
 class IncidentService {
   Future<List<Incident>> fetchActiveIncidents() async {
     final data = await supabaseClient
@@ -67,7 +118,7 @@ class IncidentService {
         'p_incident_id': incidentId,
       });
     } on PostgrestException catch (e) {
-      throw _parseDispatchError(e);
+      throw parseDispatchError(e);
     }
     // Best-effort SMS fallback — never block the dispatch flow.
     await SmsService().notifyHospitalIncomingPatient(incidentId);
@@ -83,7 +134,7 @@ class IncidentService {
         'p_ambulance_id': ambulanceId,
       });
     } on PostgrestException catch (e) {
-      throw _parseDispatchError(e);
+      throw parseDispatchError(e);
     }
     await SmsService().notifyHospitalIncomingPatient(incidentId);
   }
@@ -98,36 +149,7 @@ class IncidentService {
         'p_new_status': newStatus,
       });
     } on PostgrestException catch (e) {
-      throw _parseDispatchError(e);
+      throw parseDispatchError(e);
     }
-  }
-
-  DispatchException _parseDispatchError(PostgrestException e) {
-    final msg = e.message.toLowerCase();
-    if (msg.contains('no_ambulance_available')) {
-      return const DispatchException(
-        'no_ambulance_available',
-        'No available ambulance found. All units are currently busy or offline.',
-      );
-    }
-    if (msg.contains('incident_already_dispatched')) {
-      return const DispatchException(
-        'incident_already_dispatched',
-        'This incident has already been dispatched.',
-      );
-    }
-    if (msg.contains('incident_not_found')) {
-      return const DispatchException(
-        'incident_not_found',
-        'Incident not found.',
-      );
-    }
-    if (msg.contains('unauthorized')) {
-      return const DispatchException(
-        'unauthorized',
-        'You do not have permission to perform this action.',
-      );
-    }
-    return DispatchException('unknown', e.message);
   }
 }

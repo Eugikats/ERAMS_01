@@ -16,6 +16,7 @@ import '../../services/auth_service.dart';
 import '../../state/admin_provider.dart';
 import '../../state/dispatcher_provider.dart';
 import '../../widgets/app_logo.dart';
+import '../../widgets/incident_routes_layer.dart';
 import '../../widgets/profile_edit_sheet.dart';
 import '../../widgets/status_badge.dart';
 import '../dispatcher/location_picker.dart';
@@ -205,6 +206,12 @@ class _LiveMapTabState extends ConsumerState<_LiveMapTab> {
                   urlTemplate:
                       'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.erams.erams',
+                ),
+                // Highlighted shortest route from each accepted ambulance to
+                // its patient (drawn under the markers).
+                IncidentRoutesLayer(
+                  incidents: activeIncidents,
+                  ambulances: ambulances,
                 ),
                 MarkerLayer(markers: _hospitalMarkers(hospitals)),
                 MarkerLayer(markers: _ambulanceMarkers(ambulances)),
@@ -510,6 +517,11 @@ class _AdminMapLegend extends StatelessWidget {
               color: AppColors.statusArrived,
               icon: Icons.airport_shuttle,
               label: 'Arrived'),
+          SizedBox(height: 6),
+          _LegendRow(
+              color: AppColors.statusEnRoute,
+              icon: Icons.route,
+              label: 'Route to patient'),
         ],
       ),
     );

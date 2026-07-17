@@ -33,9 +33,15 @@ class _ChatSheetState extends ConsumerState<ChatSheet> {
   ScrollController? _listController;
   bool _sending = false;
   int _lastLength = 0;
+  late final String _myId;
 
-  String get _myId =>
-      supabaseClient.auth.currentUser?.id ?? '';
+  @override
+  void initState() {
+    super.initState();
+    _myId = supabaseClient.auth.currentUser?.id ?? '';
+    // Mark existing messages as seen when chat opens.
+    MessageService().markSeen(widget.incidentId);
+  }
 
   @override
   void dispose() {
@@ -79,12 +85,14 @@ class _ChatSheetState extends ConsumerState<ChatSheet> {
   Widget build(BuildContext context) {
     final messagesAsync = ref.watch(messagesProvider(widget.incidentId));
 
-    // Mark seen + auto-scroll whenever message list length changes
+    // Auto-scroll and mark seen on new messages.
     messagesAsync.whenData((messages) {
       if (messages.length != _lastLength) {
         _lastLength = messages.length;
-        ref.read(chatSeenProvider.notifier)
+        ref
+            .read(chatSeenProvider.notifier)
             .markSeen(widget.incidentId, messages.length);
+        MessageService().markSeen(widget.incidentId);
         _scrollToBottom();
       }
     });
@@ -100,60 +108,58 @@ class _ChatSheetState extends ConsumerState<ChatSheet> {
         return Container(
           decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius:
-                BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(
             children: [
-              // ── Handle + title ─────────────────────────────────
-              _SheetHeader(
-                onClose: () => Navigator.of(context).pop(),
-              ),
+              // ── Handle + title ───────────────────────────────────
+              _SheetHeader(onClose: () => Navigator.of(context).pop()),
               const Divider(height: 1),
 
-              // ── Message list ───────────────────────────────────
+              // ── Message list ─────────────────────────────────────
               Expanded(
-                child: messagesAsync.when(
-                  loading: () => const Center(
-                      child: CircularProgressIndicator()),
-                  error: (e, _) => Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        'Could not load messages:\n$e',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            color: AppColors.error),
+                child: ColoredBox(
+                  color: const Color(0xFFEAE6DF), // WhatsApp warm grey
+                  child: messagesAsync.when(
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (e, _) => Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'Could not load messages:\n$e',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: AppColors.error),
+                        ),
                       ),
                     ),
+                    data: (messages) {
+                      if (messages.isEmpty) return const _EmptyState();
+                      return ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 12),
+                        itemCount: messages.length,
+                        itemBuilder: (_, i) {
+                          final msg = messages[i];
+                          final isMe = msg.isMe(_myId);
+                          final showName = !isMe &&
+                              (i == 0 ||
+                                  messages[i - 1].senderId != msg.senderId);
+                          return _MessageBubble(
+                            message: msg,
+                            isMe: isMe,
+                            myId: _myId,
+                            showName: showName,
+                          );
+                        },
+                      );
+                    },
                   ),
-                  data: (messages) {
-                    if (messages.isEmpty) {
-                      return const _EmptyState();
-                    }
-                    return ListView.builder(
-                      controller: scrollController,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
-                      itemCount: messages.length,
-                      itemBuilder: (_, i) {
-                        final msg = messages[i];
-                        final showName = !msg.isMe(_myId) &&
-                            (i == 0 ||
-                                messages[i - 1].senderId !=
-                                    msg.senderId);
-                        return _MessageBubble(
-                          message: msg,
-                          isMe: msg.isMe(_myId),
-                          showName: showName,
-                        );
-                      },
-                    );
-                  },
                 ),
               ),
 
-              // ── Input bar ──────────────────────────────────────
+              // ── Input bar ────────────────────────────────────────
               _InputBar(
                 controller: _textController,
                 sending: _sending,
@@ -193,8 +199,7 @@ class _SheetHeader extends StatelessWidget {
           const SizedBox(width: 8),
           const Text(
             'Incident Chat',
-            style: TextStyle(
-                fontWeight: FontWeight.w700, fontSize: 16),
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
           ),
           const Spacer(),
           IconButton(
@@ -217,16 +222,14 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.chat_bubble_outline,
-              size: 48, color: AppColors.textHint),
+          Icon(Icons.chat_bubble_outline, size: 48, color: AppColors.textHint),
           SizedBox(height: 12),
           Text('No messages yet',
-              style: TextStyle(
-                  color: AppColors.textSecondary, fontSize: 15)),
+              style:
+                  TextStyle(color: AppColors.textSecondary, fontSize: 15)),
           SizedBox(height: 4),
           Text('Start the conversation',
-              style: TextStyle(
-                  color: AppColors.textHint, fontSize: 12)),
+              style: TextStyle(color: AppColors.textHint, fontSize: 12)),
         ],
       ),
     );
@@ -251,8 +254,8 @@ class _InputBar extends StatelessWidget {
           12, 8, 12, MediaQuery.of(context).viewInsets.bottom + 12),
       decoration: const BoxDecoration(
         color: AppColors.surface,
-        border: Border(
-            top: BorderSide(color: AppColors.divider, width: 1)),
+        border:
+            Border(top: BorderSide(color: AppColors.divider, width: 1)),
       ),
       child: Row(
         children: [
@@ -269,18 +272,15 @@ class _InputBar extends StatelessWidget {
                     horizontal: 14, vertical: 10),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
-                  borderSide:
-                      const BorderSide(color: AppColors.divider),
+                  borderSide: const BorderSide(color: AppColors.divider),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
-                  borderSide:
-                      const BorderSide(color: AppColors.divider),
+                  borderSide: const BorderSide(color: AppColors.divider),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
-                  borderSide:
-                      const BorderSide(color: AppColors.primary),
+                  borderSide: const BorderSide(color: AppColors.primary),
                 ),
               ),
               onSubmitted: (_) => onSend(),
@@ -316,79 +316,136 @@ class _InputBar extends StatelessWidget {
   }
 }
 
+// ── Message bubble ─────────────────────────────────────────────────────────────
+
 class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMe;
+  final String myId;
   final bool showName;
 
   const _MessageBubble({
     required this.message,
     required this.isMe,
+    required this.myId,
     required this.showName,
   });
 
+  // WhatsApp dark green for my own (sent) messages.
+  static const _sentBg = Color(0xFF005C4B);
+
+  // Received messages are tinted by the sender's role so a patient's
+  // messages look visually distinct from a driver's, dispatcher's, etc.
+  static Color _receivedBg(String role) => switch (role) {
+        'driver'     => const Color(0xFFDCEBFF), // soft blue
+        'patient'    => const Color(0xFFFFE3E0), // soft coral
+        'dispatcher' => const Color(0xFFEDE1FF), // soft purple
+        'hospital'   => const Color(0xFFD8F5EF), // soft teal
+        _            => const Color(0xFFFFFFFF),
+      };
+
   @override
   Widget build(BuildContext context) {
+    // Row + Flexible is the canonical chat-bubble layout:
+    //  • mainAxisAlignment pins the bubble to the correct side.
+    //  • Flexible lets the bubble shrink-wrap short text yet wrap long text,
+    //    capped at maxWidth so it never spans the whole screen.
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Column(
-        crossAxisAlignment:
-            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+      child: Row(
+        mainAxisAlignment:
+            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!isMe && showName)
-            Padding(
-              padding: const EdgeInsets.only(left: 12, bottom: 2),
-              child: Text(
-                _senderLabel(message),
-                style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary),
+          Flexible(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.75,
               ),
-            ),
-          Row(
-            mainAxisAlignment: isMe
-                ? MainAxisAlignment.end
-                : MainAxisAlignment.start,
-            children: [
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                    maxWidth:
-                        MediaQuery.of(context).size.width * 0.72),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 9),
-                  decoration: BoxDecoration(
-                    color: isMe
-                        ? AppColors.primary
-                        : const Color(0xFFEEEEEE),
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: Radius.circular(isMe ? 16 : 4),
-                      bottomRight: Radius.circular(isMe ? 4 : 16),
+              child: Column(
+                crossAxisAlignment: isMe
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Sender name (received messages only, first in a run).
+                  if (!isMe && showName)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 12, bottom: 2),
+                      child: Text(
+                        _senderLabel(message),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                        ),
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    message.body,
-                    style: TextStyle(
+
+                  // Bubble.
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
                       color: isMe
-                          ? Colors.white
-                          : AppColors.textPrimary,
-                      fontSize: 14,
+                          ? _sentBg
+                          : _receivedBg(message.senderRole),
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
+                        bottomLeft: Radius.circular(isMe ? 16 : 4),
+                        bottomRight: Radius.circular(isMe ? 4 : 16),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.10),
+                          blurRadius: 3,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Message text.
+                        Text(
+                          message.body,
+                          style: TextStyle(
+                            color: isMe
+                                ? Colors.white
+                                : AppColors.textPrimary,
+                            fontSize: 14.5,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        // Timestamp + tick (tick only on sent messages).
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Text(
+                              _formatTime(message.createdAt),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: isMe
+                                    ? Colors.white.withValues(alpha: 0.65)
+                                    : AppColors.textHint,
+                              ),
+                            ),
+                            if (isMe) ...[
+                              const SizedBox(width: 3),
+                              _ReadTick(
+                                  isRead: message.isSeenByOthers(myId)),
+                            ],
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.only(
-                top: 2, left: 12, right: 12),
-            child: Text(
-              _formatTime(message.createdAt),
-              style: const TextStyle(
-                  fontSize: 10, color: AppColors.textHint),
             ),
           ),
         ],
@@ -397,8 +454,7 @@ class _MessageBubble extends StatelessWidget {
   }
 
   static String _senderLabel(ChatMessage msg) {
-    final name =
-        msg.senderName.isNotEmpty ? msg.senderName : 'Unknown';
+    final name = msg.senderName.isNotEmpty ? msg.senderName : 'Unknown';
     final tag = switch (msg.senderRole) {
       'driver'     => 'Driver',
       'dispatcher' => 'Dispatcher',
@@ -416,7 +472,25 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-// ── Reusable badge icon widget ─────────────────────────────────────────────────
+// ── Read-receipt tick ──────────────────────────────────────────────────────────
+
+class _ReadTick extends StatelessWidget {
+  final bool isRead;
+  const _ReadTick({required this.isRead});
+
+  @override
+  Widget build(BuildContext context) {
+    if (isRead) {
+      // Double blue — at least one other participant has opened the chat.
+      return const Icon(Icons.done_all_rounded,
+          size: 15, color: Color(0xFF53BDEB));
+    }
+    // Single white/grey — sent to server, nobody else has seen it yet.
+    return const Icon(Icons.check_rounded, size: 15, color: Colors.white54);
+  }
+}
+
+// ── Chat icon with unread badge ────────────────────────────────────────────────
 
 /// Chat icon with a small red badge showing [unread] count (0 = no badge).
 Widget chatIconWithBadge(int unread) {
@@ -424,13 +498,9 @@ Widget chatIconWithBadge(int unread) {
     clipBehavior: Clip.none,
     children: [
       Icon(
-        unread > 0
-            ? Icons.chat_bubble
-            : Icons.chat_bubble_outline,
+        unread > 0 ? Icons.chat_bubble : Icons.chat_bubble_outline,
         size: 20,
-        color: unread > 0
-            ? AppColors.primary
-            : AppColors.textSecondary,
+        color: unread > 0 ? AppColors.primary : AppColors.textSecondary,
       ),
       if (unread > 0)
         Positioned(

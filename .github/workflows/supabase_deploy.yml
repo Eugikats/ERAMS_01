@@ -16,7 +16,11 @@ jobs:
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned instead of "latest" — resolving "latest" makes an
+          # unauthenticated GitHub API call that intermittently fails with
+          # "rate limit exceeded" on shared runner IPs (seen 7 Jul and 11 Jul).
+          # Bump this deliberately when needed instead.
+          version: 2.109.1
 
       - name: Link Supabase project
         run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}

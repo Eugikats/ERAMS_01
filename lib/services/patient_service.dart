@@ -1,6 +1,9 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/ambulance.dart';
 import '../models/incident.dart';
 import '../models/trip.dart';
+import 'incident_service.dart';
 import 'sms_service.dart';
 import 'supabase_service.dart';
 
@@ -17,6 +20,16 @@ class PatientService {
           .map((e) => Ambulance.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (_) {
+      final busyRows = await supabaseClient
+          .from('incidents')
+          .select('assigned_ambulance_id')
+          .inFilter('status',
+              ['pending_acceptance', 'dispatched', 'en_route', 'arrived']);
+      final busyIds = (busyRows as List)
+          .map((e) => e['assigned_ambulance_id'] as String?)
+          .whereType<String>()
+          .toSet();
+
       final data = await supabaseClient
           .from('ambulances')
           .select()
@@ -24,6 +37,7 @@ class PatientService {
           .order('plate_number');
       return (data as List)
           .map((e) => Ambulance.fromJson(e as Map<String, dynamic>))
+          .where((a) => !busyIds.contains(a.id))
           .toList();
     }
   }
@@ -48,29 +62,38 @@ class PatientService {
         .single();
 
     // Insert the incident
-    final incidentData = await supabaseClient
-        .from('incidents')
-        .insert({
-          'reporter_name':          profileData['full_name'] as String? ?? '',
-          'reporter_phone':         profileData['phone'] as String? ?? '',
-          'incident_location':      'SRID=4326;POINT($longitude $latitude)',
-          'nature_of_emergency':    natureOfEmergency,
-          'patient_condition_notes': patientConditionNotes,
-          'assigned_hospital_id':   assignedHospitalId,
-          'status':                 'logged',
-          'created_by':             userId,
-        })
-        .select()
-        .single();
+    final Map<String, dynamic> incidentData;
+    try {
+      incidentData = await supabaseClient
+          .from('incidents')
+          .insert({
+            'reporter_name':          profileData['full_name'] as String? ?? '',
+            'reporter_phone':         profileData['phone'] as String? ?? '',
+            'incident_location':      'SRID=4326;POINT($longitude $latitude)',
+            'nature_of_emergency':    natureOfEmergency,
+            'patient_condition_notes': patientConditionNotes,
+            'assigned_hospital_id':   assignedHospitalId,
+            'status':                 'logged',
+            'created_by':             userId,
+          })
+          .select()
+          .single();
+    } on PostgrestException catch (e) {
+      throw parseDispatchError(e);
+    }
 
     final incidentId = incidentData['id'] as String;
 
     // Dispatch to the selected ambulance with patient_id → sets pending_acceptance
-    await supabaseClient.rpc('dispatch_incident', params: {
-      'p_incident_id':  incidentId,
-      'p_ambulance_id': ambulanceId,
-      'p_patient_id':   userId,
-    });
+    try {
+      await supabaseClient.rpc('dispatch_incident', params: {
+        'p_incident_id':  incidentId,
+        'p_ambulance_id': ambulanceId,
+        'p_patient_id':   userId,
+      });
+    } on PostgrestException catch (e) {
+      throw parseDispatchError(e);
+    }
 
     // Best-effort SMS fallback so the driver is alerted even if the app is closed.
     await SmsService().notifyDriverJobOffer(incidentId, ambulanceId);
@@ -112,6 +135,19 @@ class PatientService {
 
     if (incidentData == null) return null;
     return Incident.fromJson(incidentData);
+  }
+
+  /// Cancels the patient's own request/trip on [incidentId], at any stage
+  /// before it's completed or already cancelled.
+  Future<void> cancelTrip(String incidentId, {String? reason}) async {
+    try {
+      await supabaseClient.rpc('cancel_trip', params: {
+        'p_incident_id': incidentId,
+        if (reason != null) 'p_reason': reason,
+      });
+    } on PostgrestException catch (e) {
+      throw parseDispatchError(e);
+    }
   }
 
   /// Records a patient rating (1–5 stars) for a completed trip.

@@ -121,4 +121,23 @@ class Ambulance {
       equipmentNotes: json['equipment_notes'] as String? ?? '',
     );
   }
+
+  Ambulance copyWith({AmbulanceStatus? status}) {
+    return Ambulance(
+      id: id,
+      plateNumber: plateNumber,
+      status: status ?? this.status,
+      latitude: latitude,
+      longitude: longitude,
+      driverId: driverId,
+      hospitalId: hospitalId,
+      lastLocationUpdate: lastLocationUpdate,
+      serviceType: serviceType,
+      baseFare: baseFare,
+      pricePerKm: pricePerKm,
+      rating: rating,
+      ratingCount: ratingCount,
+      equipmentNotes: equipmentNotes,
+    );
+  }
 }

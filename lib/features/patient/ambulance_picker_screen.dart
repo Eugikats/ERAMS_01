@@ -48,6 +48,12 @@ class _AmbulancePickerScreenState
             backgroundColor: AppColors.error,
           ),
         );
+        // The ambulance list can go stale between load and tap (another
+        // patient/dispatcher may have taken it) — refresh so the retry
+        // reflects current availability instead of repeating the same
+        // failure against the same list.
+        ref.invalidate(
+            _nearbyAmbulancesForLocationProvider(LatLng(_lat, _lng)));
       }
     } finally {
       if (mounted) setState(() => _selecting = null);

@@ -11,8 +11,10 @@ import '../../core/theme/app_colors.dart';
 import '../../models/ambulance.dart';
 import '../../models/incident.dart';
 import '../../models/trip.dart';
+import '../../services/routing_service.dart';
 import '../../state/message_provider.dart';
 import '../../state/patient_provider.dart';
+import '../../state/routing_provider.dart';
 import '../../widgets/call_screen.dart';
 import '../../widgets/chat_sheet.dart';
 
@@ -88,8 +90,19 @@ class _TripTrackingScreenState extends ConsumerState<TripTrackingScreen> {
             ? LatLng(ambulance!.latitude!, ambulance.longitude!)
             : null;
 
-    final etaMin = _etaMinutes(ambulanceLatLng, patientLatLng);
-    final distKm = _distanceKm(ambulanceLatLng, patientLatLng);
+    // Shortest road route the ambulance will actually drive to reach the
+    // patient. Falls back to a straight-line haversine estimate below while
+    // it's loading or if the routing server can't be reached.
+    final routeAsync = ambulanceLatLng != null
+        ? ref.watch(
+            routeProvider(routeCacheKey(ambulanceLatLng, patientLatLng)))
+        : const AsyncData<RouteResult?>(null);
+    final route = routeAsync.valueOrNull;
+
+    final etaMin =
+        route?.durationMin ?? _etaMinutes(ambulanceLatLng, patientLatLng);
+    final distKm =
+        route?.distanceKm ?? _distanceKm(ambulanceLatLng, patientLatLng);
 
     return Scaffold(
       appBar: AppBar(
@@ -98,6 +111,14 @@ class _TripTrackingScreenState extends ConsumerState<TripTrackingScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         leading: BackButton(onPressed: () => context.go('/patient')),
+        actions: [
+          if (incident != null && _isCancellable(incident.status))
+            IconButton(
+              tooltip: 'Cancel request',
+              icon: const Icon(Icons.cancel_outlined),
+              onPressed: () => _confirmCancel(),
+            ),
+        ],
       ),
       body: incidentAsync.when(
         loading: () =>
@@ -119,6 +140,7 @@ class _TripTrackingScreenState extends ConsumerState<TripTrackingScreen> {
               _buildMap(
                 patientLatLng: patientLatLng,
                 ambulanceLatLng: ambulanceLatLng,
+                route: route,
               ),
 
               // ── OSM attribution ─────────────────────────────────────────
@@ -243,6 +265,7 @@ class _TripTrackingScreenState extends ConsumerState<TripTrackingScreen> {
   Widget _buildMap({
     required LatLng patientLatLng,
     required LatLng? ambulanceLatLng,
+    required RouteResult? route,
   }) {
     final center = ambulanceLatLng != null
         ? LatLng(
@@ -259,18 +282,33 @@ class _TripTrackingScreenState extends ConsumerState<TripTrackingScreen> {
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.erams.erams',
         ),
-        // Dashed line between ambulance and patient
         if (ambulanceLatLng != null)
-          PolylineLayer(
-            polylines: [
-              Polyline(
-                points: [ambulanceLatLng, patientLatLng],
-                color: AppColors.primary.withValues(alpha: 0.45),
-                strokeWidth: 2.5,
-                isDotted: true,
-              ),
-            ],
-          ),
+          if (route != null)
+            // Highlighted shortest road route the ambulance will follow
+            PolylineLayer(
+              polylines: [
+                Polyline(
+                  points: route.points,
+                  color: AppColors.primary,
+                  strokeWidth: 5,
+                  borderColor: Colors.white,
+                  borderStrokeWidth: 1.5,
+                ),
+              ],
+            )
+          else
+            // Fallback: straight dashed line while the route is loading or
+            // the routing server is unreachable
+            PolylineLayer(
+              polylines: [
+                Polyline(
+                  points: [ambulanceLatLng, patientLatLng],
+                  color: AppColors.primary.withValues(alpha: 0.45),
+                  strokeWidth: 2.5,
+                  isDotted: true,
+                ),
+              ],
+            ),
         // Patient marker
         MarkerLayer(
           markers: [
@@ -444,6 +482,51 @@ class _TripTrackingScreenState extends ConsumerState<TripTrackingScreen> {
         ],
       ),
     );
+  }
+
+  static bool _isCancellable(IncidentStatus status) =>
+      status != IncidentStatus.completed &&
+      status != IncidentStatus.cancelled;
+
+  Future<void> _confirmCancel() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Cancel this request?'),
+        content: const Text(
+            'The assigned ambulance will be freed up for other emergencies. '
+            'This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Keep Request'),
+          ),
+          FilledButton(
+            style:
+                FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Cancel Request'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await ref
+          .read(activeIncidentProvider(widget.incidentId).notifier)
+          .cancelTrip();
+      // The ref.listen block above shows the snackbar and navigates back
+      // once Realtime confirms the incident is 'cancelled'.
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to cancel: $e')),
+        );
+      }
+    }
   }
 
   static String _formatDuration(Duration d) {

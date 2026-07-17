@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -56,16 +55,7 @@ class DriverAmbulanceNotifier extends AsyncNotifier<Ambulance?> {
     if (amb == null) return;
     await DriverService().setAmbulanceStatus(amb.id, status);
     // Optimistic update; Realtime confirms shortly after
-    state = AsyncData(Ambulance(
-      id: amb.id,
-      plateNumber: amb.plateNumber,
-      status: AmbulanceStatus.fromString(status),
-      latitude: amb.latitude,
-      longitude: amb.longitude,
-      driverId: amb.driverId,
-      hospitalId: amb.hospitalId,
-      lastLocationUpdate: amb.lastLocationUpdate,
-    ));
+    state = AsyncData(amb.copyWith(status: AmbulanceStatus.fromString(status)));
   }
 }
 
@@ -80,12 +70,35 @@ final driverAmbulanceProvider =
 
 class DriverIncidentNotifier extends AsyncNotifier<Incident?> {
   RealtimeChannel? _channel;
+  // The ambulance ID this build's fetch/Realtime subscription is keyed to.
+  // Used only to detect a genuine reassignment to a different ambulance.
+  String? _subscribedAmbulanceId;
 
   @override
   Future<Incident?> build() async {
-    final ambulance = await ref.watch(driverAmbulanceProvider.future);
-    if (ambulance == null) return null;
+    // ref.read (not ref.watch): only need the ambulance ID once per build.
+    // Watching `.future` made Riverpod fully re-run this build() (briefly
+    // showing `loading`, wiping the active-incident card) every ~15s --
+    // every GPS location push updates the driver's own `ambulances` row,
+    // which unconditionally re-notifies `.future` watchers regardless of
+    // whether anything relevant to this notifier actually changed.
+    final ambulance = await ref.read(driverAmbulanceProvider.future);
 
+    // Still notice a genuine reassignment to a different ambulance (e.g. an
+    // admin moves this driver to another vehicle) -- just not every routine
+    // field update (GPS, status) on the same one.
+    ref.listen<AsyncValue<Ambulance?>>(driverAmbulanceProvider, (prev, next) {
+      if (next.valueOrNull?.id != _subscribedAmbulanceId) {
+        ref.invalidateSelf();
+      }
+    });
+
+    if (ambulance == null) {
+      _subscribedAmbulanceId = null;
+      return null;
+    }
+
+    _subscribedAmbulanceId = ambulance.id;
     final incident =
         await DriverService().fetchActiveIncident(ambulance.id);
     _subscribeRealtime(ambulance.id);
@@ -124,11 +137,23 @@ class DriverIncidentNotifier extends AsyncNotifier<Incident?> {
     }
   }
 
+  /// Re-fetches the current offer/incident after a failed accept/decline.
+  /// The RPCs reject with `unauthorized`/`invalid_status` when the offer has
+  /// already moved on server-side (taken, expired, or reassigned to a
+  /// different ambulance) — refreshing here lets the job-offer dialog
+  /// notice `stillOffered` is now false and close itself, instead of
+  /// leaving the driver stuck retapping Accept against a dead offer.
+  Future<void> refreshAfterConflict() => _refresh();
+
   Future<void> acceptOffer() async {
     final incident = state.valueOrNull;
     if (incident == null) return;
     await DriverService().acceptTrip(incident.id);
-    // Realtime subscription fires on incident update → _refresh() handles state
+    // Realtime should also push this update, but don't leave the driver
+    // stuck on the job-offer screen if that's delayed or dropped — refresh
+    // now so the active-incident card (and call/chat buttons) appear
+    // immediately, same as declineOffer() below.
+    await _refresh();
   }
 
   /// Declines the current job offer. After decline, the incident is
@@ -152,7 +177,9 @@ class DriverIncidentNotifier extends AsyncNotifier<Incident?> {
     };
     if (next == null) return;
     await DriverService().updateIncidentStatus(incident.id, next);
-    // Realtime subscription will refresh state
+    // Same reasoning as acceptOffer(): don't rely solely on Realtime to
+    // reflect the driver's own action back to them.
+    await _refresh();
   }
 }
 
@@ -171,10 +198,23 @@ final hospitalByIdProvider =
 });
 
 // ---------------------------------------------------------------------------
-// GPS tracking — streams device position, uploads every 2 s
+// GPS tracking — streams the device position and uploads it every 15 s.
+// Works on web (via geolocator_web / the browser Geolocation API) as well as
+// Android/iOS/desktop.
 // ---------------------------------------------------------------------------
 
+/// Whether the device position is currently being streamed and shared.
 final gpsActiveProvider = StateProvider<bool>((ref) => false);
+
+/// Outcome of a [GpsNotifier.startTracking] attempt, so the UI can explain to
+/// the driver exactly why location sharing did or didn't begin.
+enum GpsStartResult {
+  started,
+  alreadyRunning,
+  serviceDisabled,
+  permissionDenied,
+  permissionDeniedForever,
+}
 
 class GpsNotifier extends AsyncNotifier<Position?> {
   StreamSubscription<Position>? _positionSub;
@@ -191,10 +231,32 @@ class GpsNotifier extends AsyncNotifier<Position?> {
     return null;
   }
 
-  Future<void> startTracking() async {
-    // GPS hardware APIs are not available on Flutter web.
-    if (kIsWeb) return;
-    if (!await _ensurePermission()) return;
+  Future<GpsStartResult> startTracking() async {
+    // Already streaming — treat as success, don't open a second stream.
+    if (_positionSub != null) return GpsStartResult.alreadyRunning;
+
+    // Location services must be enabled on the device / browser.
+    bool serviceEnabled;
+    try {
+      serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    } catch (_) {
+      // Some browsers throw instead of answering — assume available and let
+      // the permission check below be the real gate.
+      serviceEnabled = true;
+    }
+    if (!serviceEnabled) return GpsStartResult.serviceDisabled;
+
+    var perm = await Geolocator.checkPermission();
+    if (perm == LocationPermission.denied) {
+      perm = await Geolocator.requestPermission();
+    }
+    if (perm == LocationPermission.deniedForever) {
+      return GpsStartResult.permissionDeniedForever;
+    }
+    if (perm != LocationPermission.whileInUse &&
+        perm != LocationPermission.always) {
+      return GpsStartResult.permissionDenied;
+    }
 
     ref.read(gpsActiveProvider.notifier).state = true;
 
@@ -203,14 +265,29 @@ class GpsNotifier extends AsyncNotifier<Position?> {
         accuracy: LocationAccuracy.high,
         distanceFilter: 0,
       ),
-    ).listen((pos) {
-      _latestPosition = pos;
-      state = AsyncData(pos);
-    });
+    ).listen(
+      (pos) {
+        final isFirstFix = _latestPosition == null;
+        _latestPosition = pos;
+        state = AsyncData(pos);
+        // Publish the very first fix immediately so the driver appears on the
+        // map without waiting for the next upload tick.
+        if (isFirstFix) _pushLocation();
+      },
+      onError: (Object e, StackTrace st) {
+        // Stream failed mid-session (permission revoked, hardware error) —
+        // flip back to inactive so the badge reflects reality.
+        state = AsyncError(e, st);
+        stopTracking();
+      },
+      cancelOnError: true,
+    );
 
-    // Upload on a fixed 2-second cadence regardless of stream frequency
+    // Upload on a fixed 15-second cadence regardless of stream frequency.
     _uploadTimer =
         Timer.periodic(const Duration(seconds: 15), (_) => _pushLocation());
+
+    return GpsStartResult.started;
   }
 
   void stopTracking() {
@@ -218,17 +295,8 @@ class GpsNotifier extends AsyncNotifier<Position?> {
     _positionSub = null;
     _uploadTimer?.cancel();
     _uploadTimer = null;
+    _latestPosition = null;
     ref.read(gpsActiveProvider.notifier).state = false;
-  }
-
-  Future<bool> _ensurePermission() async {
-    if (!await Geolocator.isLocationServiceEnabled()) return false;
-    var perm = await Geolocator.checkPermission();
-    if (perm == LocationPermission.denied) {
-      perm = await Geolocator.requestPermission();
-    }
-    return perm == LocationPermission.whileInUse ||
-        perm == LocationPermission.always;
   }
 
   Future<void> _pushLocation() async {
