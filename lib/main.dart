@@ -24,7 +24,7 @@ Future<void> main() async {
     return;
   }
 
-  await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseKey);
+  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseKey);
 
   runApp(const ProviderScope(child: EramsApp()));
 }

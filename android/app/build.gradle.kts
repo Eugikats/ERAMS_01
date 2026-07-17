@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "ug.ac.kyu.erams"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
