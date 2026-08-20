@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../models/hospital.dart';
 import '../../services/incident_service.dart';
 import '../../state/dispatcher_provider.dart';
+import '../../widgets/error_state.dart';
 import 'location_picker.dart';
 
 const _emergencyTypes = [
@@ -266,8 +267,10 @@ class _NewIncidentFormState extends ConsumerState<NewIncidentForm> {
                       const SizedBox(height: 12),
                       hospitalsAsync.when(
                         loading: () => const LinearProgressIndicator(),
-                        error: (e, _) => Text('Could not load hospitals: $e',
-                            style: const TextStyle(color: AppColors.error)),
+                        error: (e, _) => InlineErrorRow(
+                          error: e,
+                          onRetry: () => ref.invalidate(hospitalsProvider),
+                        ),
                         data: (hospitals) => DropdownButtonFormField<Hospital>(
                           initialValue: _selectedHospital,
                           decoration: const InputDecoration(

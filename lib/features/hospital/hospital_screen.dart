@@ -13,6 +13,7 @@ import '../../services/hospital_service.dart';
 import '../../services/profile_service.dart';
 import '../../state/hospital_provider.dart';
 import '../../widgets/app_logo.dart';
+import '../../widgets/error_state.dart';
 import '../../widgets/incident_history_list.dart';
 import '../../widgets/profile_edit_sheet.dart';
 import '../../widgets/status_badge.dart';
@@ -29,7 +30,7 @@ class _HospitalScreenState extends ConsumerState<HospitalScreen>
   late final TabController _tabController;
   List<Map<String, dynamic>> _historyRows = [];
   bool _historyLoading = false;
-  String? _historyError;
+  Object? _historyError;
 
   @override
   void initState() {
@@ -61,7 +62,7 @@ class _HospitalScreenState extends ConsumerState<HospitalScreen>
           await ProfileService().fetchHospitalHistory(hospitalId);
       if (mounted) setState(() => _historyRows = rows);
     } catch (e) {
-      if (mounted) setState(() => _historyError = e.toString());
+      if (mounted) setState(() => _historyError = e);
     } finally {
       if (mounted) setState(() => _historyLoading = false);
     }
@@ -108,9 +109,9 @@ class _HospitalScreenState extends ConsumerState<HospitalScreen>
           hospitalAsync.when(
             loading: () =>
                 const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(
-              child: Text('Error: $e',
-                  style: const TextStyle(color: AppColors.error)),
+            error: (e, _) => ErrorRetryView(
+              error: e,
+              onRetry: () => ref.invalidate(myHospitalProvider),
             ),
             data: (hospital) {
               if (hospital == null) {
@@ -151,10 +152,10 @@ class _HospitalScreenState extends ConsumerState<HospitalScreen>
                     child: incidentsAsync.when(
                       loading: () => const Center(
                           child: CircularProgressIndicator()),
-                      error: (e, _) => Center(
-                        child: Text('Error loading incidents: $e',
-                            style: const TextStyle(
-                                color: AppColors.error)),
+                      error: (e, _) => ErrorRetryView(
+                        error: e,
+                        onRetry: () =>
+                            ref.invalidate(hospitalIncidentsProvider),
                       ),
                       data: (incidents) => incidents.isEmpty
                           ? _EmptyState(hospitalName: hospital.name)

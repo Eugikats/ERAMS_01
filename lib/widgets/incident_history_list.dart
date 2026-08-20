@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme/app_colors.dart';
+import '../core/utils/error_messages.dart';
 import 'status_badge.dart';
 
 /// Reusable past-incident list shown in the History tab of each role.
@@ -8,7 +9,7 @@ import 'status_badge.dart';
 class IncidentHistoryList extends StatefulWidget {
   final List<Map<String, dynamic>> rows;
   final bool isLoading;
-  final String? error;
+  final Object? error;
   final VoidCallback onRefresh;
 
   const IncidentHistoryList({
@@ -39,7 +40,7 @@ class _IncidentHistoryListState extends State<IncidentHistoryList> {
             const Icon(Icons.error_outline,
                 color: AppColors.error, size: 48),
             const SizedBox(height: 12),
-            Text(widget.error!,
+            Text(friendlyErrorMessage(widget.error!),
                 textAlign: TextAlign.center,
                 style:
                     const TextStyle(color: AppColors.textSecondary)),

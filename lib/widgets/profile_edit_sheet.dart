@@ -5,6 +5,7 @@ import '../core/theme/app_colors.dart';
 import '../models/profile.dart';
 import '../services/profile_service.dart';
 import '../state/auth_provider.dart';
+import 'error_state.dart';
 
 /// Bottom sheet shown from any role's app bar.
 /// Displays the current user's name, role, and phone.
@@ -86,8 +87,10 @@ class _ProfileSheetState extends ConsumerState<_ProfileSheet> {
           height: 120,
           child: Center(child: CircularProgressIndicator()),
         ),
-        error: (e, _) => Text('Error: $e',
-            style: const TextStyle(color: AppColors.error)),
+        error: (e, _) => ErrorRetryView(
+          error: e,
+          onRetry: () => ref.invalidate(currentProfileProvider),
+        ),
         data: (profile) {
           if (profile == null) {
             return const Text('Not logged in.');

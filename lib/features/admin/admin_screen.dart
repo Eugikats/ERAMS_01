@@ -16,6 +16,7 @@ import '../../services/auth_service.dart';
 import '../../state/admin_provider.dart';
 import '../../state/dispatcher_provider.dart';
 import '../../widgets/app_logo.dart';
+import '../../widgets/error_state.dart';
 import '../../widgets/incident_routes_layer.dart';
 import '../../widgets/profile_edit_sheet.dart';
 import '../../widgets/status_badge.dart';
@@ -106,8 +107,8 @@ class _LiveMapTabState extends ConsumerState<_LiveMapTab> {
     if (ambulancesAsync.hasError &&
         incidentsAsync.hasError &&
         hospitalsAsync.hasError) {
-      return _ErrorView(
-        message: ambulancesAsync.error.toString(),
+      return ErrorRetryView(
+        error: ambulancesAsync.error!,
         onRetry: () {
           ref.invalidate(ambulancesNotifierProvider);
           ref.invalidate(incidentsNotifierProvider);
@@ -915,8 +916,8 @@ class _FleetTab extends ConsumerWidget {
 
     return fleetAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => _ErrorView(message: e.toString(),
-          onRetry: () => ref.invalidate(fleetNotifierProvider)),
+      error: (e, _) => ErrorRetryView(
+          error: e, onRetry: () => ref.invalidate(fleetNotifierProvider)),
       data: (ambulances) {
         final hospitals = hospitalsAsync.valueOrNull ?? [];
         final drivers = (profilesAsync.valueOrNull ?? [])
@@ -1407,9 +1408,8 @@ class _HospitalsTab extends ConsumerWidget {
 
     return hospitalsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => _ErrorView(
-          message: e.toString(),
-          onRetry: () => ref.invalidate(adminHospitalsProvider)),
+      error: (e, _) => ErrorRetryView(
+          error: e, onRetry: () => ref.invalidate(adminHospitalsProvider)),
       data: (hospitals) {
         return Column(
           children: [
@@ -1762,9 +1762,8 @@ class _UsersTab extends ConsumerWidget {
 
     return profilesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => _ErrorView(
-          message: e.toString(),
-          onRetry: () => ref.invalidate(profilesNotifierProvider)),
+      error: (e, _) => ErrorRetryView(
+          error: e, onRetry: () => ref.invalidate(profilesNotifierProvider)),
       data: (profiles) {
         final hospitals = hospitalsAsync.valueOrNull ?? [];
         return Column(
@@ -2418,8 +2417,8 @@ class _PatientsTabState extends ConsumerState<_PatientsTab> {
 
     return recordsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => _ErrorView(
-        message: e.toString(),
+      error: (e, _) => ErrorRetryView(
+        error: e,
         onRetry: () => ref.invalidate(patientRecordsProvider),
       ),
       data: (records) {
@@ -2675,9 +2674,8 @@ class _AnalyticsTab extends ConsumerWidget {
 
     return analyticsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => _ErrorView(
-          message: e.toString(),
-          onRetry: () => ref.invalidate(analyticsProvider)),
+      error: (e, _) => ErrorRetryView(
+          error: e, onRetry: () => ref.invalidate(analyticsProvider)),
       data: (a) => RefreshIndicator(
         onRefresh: () async => ref.invalidate(analyticsProvider),
         child: ListView(
@@ -3566,34 +3564,3 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _ErrorView extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-
-  const _ErrorView({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, color: AppColors.error, size: 48),
-            const SizedBox(height: 12),
-            Text(message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textSecondary)),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

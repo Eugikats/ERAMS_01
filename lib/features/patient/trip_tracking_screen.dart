@@ -17,6 +17,7 @@ import '../../state/patient_provider.dart';
 import '../../state/routing_provider.dart';
 import '../../widgets/call_screen.dart';
 import '../../widgets/chat_sheet.dart';
+import '../../widgets/error_state.dart';
 
 class TripTrackingScreen extends ConsumerStatefulWidget {
   final String incidentId;
@@ -123,9 +124,10 @@ class _TripTrackingScreenState extends ConsumerState<TripTrackingScreen> {
       body: incidentAsync.when(
         loading: () =>
             const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Text('Error loading trip: $e',
-              style: const TextStyle(color: AppColors.error)),
+        error: (e, _) => ErrorRetryView(
+          error: e,
+          onRetry: () =>
+              ref.invalidate(activeIncidentProvider(widget.incidentId)),
         ),
         data: (incident) {
           if (incident == null) {

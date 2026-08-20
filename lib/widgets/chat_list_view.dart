@@ -7,6 +7,7 @@ import '../models/conversation.dart';
 import '../services/supabase_service.dart';
 import '../state/message_provider.dart';
 import 'chat_sheet.dart';
+import 'error_state.dart';
 
 /// Opens the conversation-history list as a full-height bottom sheet.
 /// Used by screens that don't have a dedicated Chats tab (e.g. patient home).
@@ -107,15 +108,10 @@ class _ChatListViewState extends ConsumerState<ChatListView> {
 
     return async.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            'Could not load chats:\n$e',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.error),
-          ),
-        ),
+      error: (e, _) => ErrorRetryView(
+        error: e,
+        icon: Icons.forum_outlined,
+        onRetry: () => ref.invalidate(conversationsProvider),
       ),
       data: (conversations) {
         if (conversations.isEmpty) return const _EmptyChats();

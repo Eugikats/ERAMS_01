@@ -8,6 +8,7 @@ import 'package:latlong2/latlong.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/ambulance.dart';
 import '../../services/patient_service.dart';
+import '../../widgets/error_state.dart';
 
 class AmbulancePickerScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> formData;
@@ -85,25 +86,11 @@ class _AmbulancePickerScreenState
       body: ambulancesAsync.when(
         loading: () =>
             const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline,
-                  color: AppColors.error, size: 48),
-              const SizedBox(height: 12),
-              Text('Could not load ambulances:\n$e',
-                  textAlign: TextAlign.center,
-                  style:
-                      const TextStyle(color: AppColors.textSecondary)),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () =>
-                    ref.invalidate(_nearbyAmbulancesForLocationProvider),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
+        error: (e, _) => ErrorRetryView(
+          error: e,
+          icon: Icons.airport_shuttle_outlined,
+          onRetry: () =>
+              ref.invalidate(_nearbyAmbulancesForLocationProvider),
         ),
         data: (ambulances) {
           if (ambulances.isEmpty) {

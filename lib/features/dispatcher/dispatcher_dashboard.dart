@@ -37,7 +37,7 @@ class _DispatcherDashboardState extends ConsumerState<DispatcherDashboard>
   late final TabController _tabController;
   List<Map<String, dynamic>> _historyRows = [];
   bool _historyLoading = false;
-  String? _historyError;
+  Object? _historyError;
 
   @override
   void initState() {
@@ -65,7 +65,7 @@ class _DispatcherDashboardState extends ConsumerState<DispatcherDashboard>
       final rows = await ProfileService().fetchDispatcherHistory();
       if (mounted) setState(() => _historyRows = rows);
     } catch (e) {
-      if (mounted) setState(() => _historyError = e.toString());
+      if (mounted) setState(() => _historyError = e);
     } finally {
       if (mounted) setState(() => _historyLoading = false);
     }

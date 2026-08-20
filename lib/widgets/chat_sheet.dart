@@ -6,6 +6,7 @@ import '../models/chat_message.dart';
 import '../services/message_service.dart';
 import '../services/supabase_service.dart';
 import '../state/message_provider.dart';
+import 'error_state.dart';
 
 /// Opens the incident chat bottom sheet.
 void showChatSheet(BuildContext context, String incidentId) {
@@ -123,15 +124,11 @@ class _ChatSheetState extends ConsumerState<ChatSheet> {
                   child: messagesAsync.when(
                     loading: () =>
                         const Center(child: CircularProgressIndicator()),
-                    error: (e, _) => Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          'Could not load messages:\n$e',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: AppColors.error),
-                        ),
-                      ),
+                    error: (e, _) => ErrorRetryView(
+                      error: e,
+                      icon: Icons.chat_bubble_outline,
+                      onRetry: () => ref
+                          .invalidate(messagesProvider(widget.incidentId)),
                     ),
                     data: (messages) {
                       if (messages.isEmpty) return const _EmptyState();

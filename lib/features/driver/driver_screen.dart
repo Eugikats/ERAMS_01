@@ -20,6 +20,7 @@ import '../../widgets/app_logo.dart';
 import '../../widgets/call_screen.dart';
 import '../../widgets/chat_list_view.dart';
 import '../../widgets/chat_sheet.dart';
+import '../../widgets/error_state.dart';
 import '../../widgets/incident_history_list.dart';
 import '../../widgets/profile_edit_sheet.dart';
 import '../../widgets/status_badge.dart';
@@ -36,7 +37,7 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
   late final TabController _tabController;
   List<Map<String, dynamic>> _historyRows = [];
   bool _historyLoading = false;
-  String? _historyError;
+  Object? _historyError;
   // Tracks which offer we've already popped a dialog for, so Realtime churn
   // doesn't reopen it and so it's eligible again once this offer resolves.
   String? _lastOfferDialogIncidentId;
@@ -109,7 +110,7 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
       final rows = await ProfileService().fetchDriverHistory(ambulanceId);
       if (mounted) setState(() => _historyRows = rows);
     } catch (e) {
-      if (mounted) setState(() => _historyError = e.toString());
+      if (mounted) setState(() => _historyError = e);
     } finally {
       if (mounted) setState(() => _historyLoading = false);
     }
@@ -189,9 +190,9 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
           // ── Active tab ────────────────────────────────────────
           ambulanceAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(
-              child: Text('Error: $e',
-                  style: const TextStyle(color: AppColors.error)),
+            error: (e, _) => ErrorRetryView(
+              error: e,
+              onRetry: () => ref.invalidate(driverAmbulanceProvider),
             ),
             data: (ambulance) {
               if (ambulance == null) {
@@ -279,9 +280,10 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
                                 child: CircularProgressIndicator(),
                               ),
                             ),
-                            error: (e, _) => Text(
-                              'Error loading incident: $e',
-                              style: const TextStyle(color: AppColors.error),
+                            error: (e, _) => InlineErrorRow(
+                              error: e,
+                              onRetry: () =>
+                                  ref.invalidate(driverIncidentProvider),
                             ),
                             data: (incident) {
                               if (incident == null) {
